@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-type Effect = 'impact' | 'escape' | 'finish'
+const tones = {
+  impact: [150, 65, 0.14],
+  escape: [440, 740, 0.14],
+  finish: [280, 80, 0.32],
+  warning: [710, 430, 0.12],
+} as const
 
 export function useGameSound(enabled: boolean) {
   const device = useRef<AudioContext | null>(null)
@@ -19,15 +24,13 @@ export function useGameSound(enabled: boolean) {
   }, [enabled])
 
   const play = useCallback(
-    (effect: Effect) => {
+    (effect: keyof typeof tones) => {
       const context = device.current
       if (!enabled || !context || context.state !== 'running') return
       const tone = context.createOscillator()
       const volume = context.createGain()
       const start = context.currentTime
-      const duration = effect === 'finish' ? 0.32 : 0.14
-      const [from, to] =
-        effect === 'escape' ? [440, 740] : effect === 'impact' ? [150, 65] : [280, 80]
+      const [from, to, duration] = tones[effect]
       tone.type = effect === 'impact' ? 'triangle' : 'sine'
       tone.frequency.setValueAtTime(from, start)
       tone.frequency.exponentialRampToValueAtTime(to, start + duration)

@@ -18,6 +18,9 @@ export interface Enemy {
   chaseBonus: number
   fallTimer: number
   fallSide: number
+  slideTimer: number
+  slideOffset: number
+  slideCooldown: number
 }
 
 export interface GameState extends Course {
@@ -44,6 +47,9 @@ const playerRadius = 0.34
 const enemyRadius = 0.36
 const edge = COURSE_HALF_WIDTH - playerRadius
 const startSpeed = 21
+const slideRange = 7.5
+const slideTime = 1.25
+const slideWidth = 3.2
 export const RIVAL_FALL_TIME = 1.8
 
 function clamp(value: number, low: number, high: number): number {
@@ -70,6 +76,9 @@ function addEnemy(state: GameState, distance: number, offset: number) {
     chaseBonus: 0.52 + state.random() * 0.52,
     fallTimer: 0,
     fallSide: 0,
+    slideTimer: 0,
+    slideOffset: 0,
+    slideCooldown: 0,
   })
 }
 
@@ -110,14 +119,13 @@ function hits(x: number, distance: number, radius: number, obstacle: Obstacle): 
 
 function movePlayer(state: GameState, input: GameInput, cruise: number) {
   const steer = clamp(input.steer, -1, 1)
-  const strongSteer = Math.abs(steer) >= 0.82 ? Math.sign(steer) : 0
-  if (strongSteer && strongSteer !== state.strongSteer) state.dodgeTimer = 0.24
+  const strongSteer = Math.abs(steer) >= 0.7 ? Math.sign(steer) : 0
+  if (strongSteer && strongSteer !== state.strongSteer) state.dodgeTimer = 0.34
   state.strongSteer = strongSteer
   state.dodgeTimer = strongSteer ? Math.max(0, state.dodgeTimer - tick) : 0
   const brake = clamp(input.brake, 0, 1)
   const center = courseCenter(state.distance)
-  const edgeDrag = clamp((Math.abs(state.x - center) - (edge - 0.8)) / 0.8, 0, 1)
-  const targetSpeed = cruise * (1 - 0.4 * brake - 0.2 * edgeDrag)
+  const targetSpeed = cruise * (1 - 0.4 * brake)
   state.slowTimer = Math.max(0, state.slowTimer - tick)
   const recovery = state.slowTimer > 0 ? 1.8 : 5
   state.speed += clamp(targetSpeed - state.speed, -14 * tick, recovery * tick)
@@ -140,6 +148,7 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
 }
 
 function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
+  const playerOffset = state.x - courseCenter(state.distance)
   for (let index = state.enemies.length - 1; index >= 0; index--) {
     const enemy = state.enemies[index]
     if (enemy.distance < state.distance - 52) {
@@ -151,13 +160,29 @@ function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
       continue
     }
     const originalCenter = courseCenter(enemy.distance)
+    const gap = state.distance - enemy.distance
+    enemy.slideCooldown = Math.max(0, enemy.slideCooldown - tick)
+    if (enemy.slideTimer > 0) enemy.slideTimer = Math.max(0, enemy.slideTimer - tick)
+    if (
+      enemy.slideCooldown === 0 &&
+      enemy.slideTimer === 0 &&
+      gap >= 0.9 &&
+      gap <= slideRange &&
+      Math.abs(playerOffset - (enemy.x - originalCenter)) <= slideWidth
+    ) {
+      enemy.slideOffset = playerOffset
+      enemy.slideTimer = slideTime
+      enemy.slideCooldown = slideTime + 0.85
+    }
+    const sliding = enemy.slideTimer > 0
     // Once alongside the skier, a rival matches their downhill pace to close sideways.
     enemy.distance = Math.min(
       state.distance + 0.15,
-      enemy.distance + (cruise + enemy.chaseBonus) * tick,
+      enemy.distance + (cruise + enemy.chaseBonus + (sliding ? 2.2 : 0)) * tick,
     )
     const center = courseCenter(enemy.distance)
-    const targetX = state.x - courseCenter(state.distance) + center
+    // The slide commits to the skier's line, leaving time to feint out of it.
+    const targetX = (sliding ? enemy.slideOffset : playerOffset) + center
     const aim = clamp((targetX - enemy.x) * 1.95, -7.8, 7.8)
     enemy.lateralSpeed += (aim - enemy.lateralSpeed) * (tick * 2.5)
     enemy.x = clamp(
@@ -175,11 +200,12 @@ function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
     const lateralGap = state.x - enemy.x
     const forwardGap = state.distance - enemy.distance
     const steeringAway =
-      lateralGap * state.strongSteer > 0 &&
-      (state.x - playerXBefore) * state.strongSteer > 3.5 * tick
-    if (state.dodgeTimer > 0 && steeringAway && Math.abs(lateralGap) < 1.25 && forwardGap < 1.95) {
+      lateralGap * state.strongSteer >= -0.65 &&
+      (state.x - playerXBefore) * state.strongSteer > 1.4 * tick
+    if (sliding && state.dodgeTimer > 0 && steeringAway && Math.abs(lateralGap) <= slideWidth + 1) {
       enemy.fallTimer = RIVAL_FALL_TIME
       enemy.fallSide = state.strongSteer
+      enemy.slideTimer = 0
       enemy.lateralSpeed = 0
       state.falls++
       continue

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { courseCenter, createGame, RIVAL_FALL_TIME, stepGame } from './simulation.ts'
+import { readStick } from './joystick.ts'
 
 const neutral = { steer: 0, brake: 0 }
 const tick = 1 / 60
@@ -58,17 +59,21 @@ test('touching the pursuer ends the run and freezes the final distance', () => {
   assert.equal(state.distance, finish)
 })
 
-test('a last-second outward carve drops a rival in place until it recovers', () => {
+test('a sliding rival can be tripped from well behind and stops until it recovers', () => {
   const game = createGame(71)
   const [rival] = game.enemies
   rival.x = -0.25
-  rival.distance = -1.45
+  rival.distance = -6.5
+  stepGame(game, neutral, tick)
+  assert.ok(rival.slideTimer > 0)
   while (game.falls === 0 && !game.caught && game.elapsed < 0.24) {
     stepGame(game, { steer: 1, brake: 0 }, tick)
   }
   assert.equal(game.caught, false)
   assert.equal(game.falls, 1)
+  assert.ok(game.distance - rival.distance > 5)
   assert.equal(rival.fallTimer, RIVAL_FALL_TIME)
+  assert.equal(rival.slideTimer, 0)
   const fallDistance = rival.distance
   const fallX = rival.x
   game.enemies = [rival]
@@ -81,13 +86,69 @@ test('a last-second outward carve drops a rival in place until it recovers', () 
 
 test('a held turn started too early does not trip a rival', () => {
   const game = createGame(41)
-  for (let frame = 0; frame < 30; frame++) stepGame(game, { steer: 1, brake: 0 }, tick)
+  game.enemies = game.enemies.slice(0, 1)
   const [rival] = game.enemies
-  rival.x = game.x
-  rival.distance = game.distance - 0.1
+  rival.distance = -14
+  for (let frame = 0; frame < 30; frame++) stepGame(game, { steer: 1, brake: 0 }, tick)
+  rival.x = game.x - 1
+  rival.distance = game.distance - 5
   stepGame(game, { steer: 1, brake: 0 }, tick)
+  assert.ok(rival.slideTimer > 0)
   assert.equal(game.falls, 0)
-  assert.equal(game.caught, true)
+})
+
+test('a distant rival keeps pursuing instead of sliding or falling', () => {
+  const game = createGame(41)
+  const [rival] = game.enemies
+  game.enemies = [rival]
+  rival.distance = -12
+  for (let frame = 0; frame < 20; frame++) stepGame(game, { steer: 1, brake: 0 }, tick)
+  assert.equal(rival.slideTimer, 0)
+  assert.equal(rival.fallTimer, 0)
+})
+
+test('steering across the course and riding the boundary keep downhill speed', () => {
+  const straight = createGame(91)
+  const turning = createGame(91)
+  for (const game of [straight, turning]) {
+    game.enemies = []
+    game.obstacles = []
+  }
+  for (let frame = 0; frame < 105; frame++) {
+    stepGame(straight, neutral, tick)
+    stepGame(turning, readStick(50, 16), tick)
+  }
+  assert.ok(turning.x > 9)
+  assert.equal(turning.distance, straight.distance)
+  assert.equal(turning.speed, straight.speed)
+  stepGame(turning, readStick(0, 43), tick)
+  assert.ok(turning.speed < straight.speed)
+})
+
+test('repeated reactions to sliding rivals can trip several in a single run', () => {
+  const game = createGame(3)
+  let turn = 0
+  let framesLeft = 0
+  while (!game.caught && game.distance < 600) {
+    const center = courseCenter(game.distance)
+    const sliding = game.enemies.find((rival) => rival.slideTimer > 0)
+    if (framesLeft === 0 && sliding && !game.strongSteer) {
+      turn = game.x >= sliding.x ? 1 : -1
+      framesLeft = 10
+    }
+    const obstacle = game.obstacles.find(
+      (item) =>
+        item.distance > game.distance - 0.5 &&
+        item.distance < game.distance + 10 &&
+        Math.abs(item.x - game.x) < 1.7,
+    )
+    let steer = framesLeft > 0 ? turn : Math.max(-0.63, Math.min(0.63, (center - game.x) * 0.4))
+    if (obstacle) steer = game.x > obstacle.x ? 1 : -1
+    framesLeft = Math.max(0, framesLeft - 1)
+    stepGame(game, { steer, brake: 0 }, tick)
+  }
+  assert.ok(game.distance >= 600)
+  assert.ok(game.falls >= 4)
 })
 
 test('aiming at obstacles and turning away late can eliminate successive pursuers', () => {

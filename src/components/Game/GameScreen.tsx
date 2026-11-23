@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound } from 'lucide-react'
+import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound, Zap } from 'lucide-react'
 import { createGame, stepGame } from '../../game/simulation'
 import type { GameState } from '../../game/simulation'
 import { SkiScene } from '../../scene/SkiScene'
@@ -41,6 +41,7 @@ function readHud(game: GameState) {
       (enemy) => enemy.fallTimer === 0 && game.distance - enemy.distance < 22,
     ).length,
     slowing: game.slowTimer > 0.35,
+    sliding: game.enemies.some((rival) => rival.slideTimer > 0),
     danger: gap < 3,
     showHint: game.elapsed < 5.5,
   }
@@ -142,6 +143,7 @@ export default function GameScreen({
     let last = performance.now()
     let lastHud = last
     let dodgeUntil = 0
+    let sliding = game.enemies.some((rival) => rival.slideTimer > 0)
     function update(now: number) {
       if (phaseRef.current !== 'playing') return
       const previousHits = game.eliminated
@@ -161,11 +163,14 @@ export default function GameScreen({
         play('escape')
       } else if (game.eliminated > previousHits) play('escape')
       else if (game.slowTimer > previousSlow) play('impact')
-      if (now - lastHud >= 90) {
+      const hasSlide = game.enemies.some((rival) => rival.slideTimer > 0)
+      if (hasSlide && !sliding) play('warning')
+      if (hasSlide !== sliding || now - lastHud >= 90) {
         setHud(readHud(game))
         setDodgeNotice(game.elapsed < dodgeUntil)
         lastHud = now
       }
+      sliding = hasSlide
       frame = requestAnimationFrame(update)
     }
     frame = requestAnimationFrame(update)
@@ -250,6 +255,11 @@ export default function GameScreen({
               </div>
             )
           )}
+        </div>
+      )}
+      {phase === 'playing' && hud.sliding && (
+        <div className="ski-dodge-prompt" role="status">
+          <Zap size={19} fill="currentColor" /> 今だ！急ターン
         </div>
       )}
       {phase === 'paused' && (

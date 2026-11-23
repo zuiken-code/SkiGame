@@ -69,9 +69,9 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
         <div>
           <RotateCcw />
           <p>
-            <strong>捕まる直前に急ターン</strong>
+            <strong>「今だ！急ターン」が合図</strong>
             <span>
-              追手がすぐ後ろに迫ったら、大きく横へ。うまくかわすと追手が転んで一時停止します。
+              追手が体を傾けて滑り込んできたら、大きく横へ。うまくかわすと追手が転びます。
             </span>
           </p>
         </div>
@@ -124,14 +124,14 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'manual'>('idle')
-  const shareText = `⛷️ Powder Chase で ${result.distance.toLocaleString('ja-JP')} m 滑った！`
+  const shareText = `⛷️ 雪山おにごっこで ${result.distance.toLocaleString('ja-JP')} m 滑った！`
   const gameUrl = new URL(window.location.pathname, window.location.origin).href
   const shareMessage = `${shareText}\n${gameUrl}`
 
   async function shareResult() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Powder Chase', text: shareText, url: gameUrl })
+        await navigator.share({ title: '雪山おにごっこ', text: shareText, url: gameUrl })
         return
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === 'AbortError') return

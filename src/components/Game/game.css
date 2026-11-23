@@ -122,7 +122,10 @@
   padding-inline: 8px;
 }
 .ski-title h1 {
-  font: italic 800 clamp(3.4rem, 11vw, 8.3rem)/0.82 var(--display);
+  font-family: 'Hiragino Sans', 'Yu Gothic', Meiryo, system-ui, sans-serif;
+  font-size: clamp(1.95rem, 11vw, 6.5rem);
+  font-weight: 900;
+  line-height: 1.1;
   color: #173253;
   letter-spacing: -0.035em;
   transform: rotate(-4deg);
@@ -130,17 +133,8 @@
   -webkit-text-stroke: 0.09em #f7fcff;
   text-shadow: 0 0.05em #a8cddf;
 }
-.ski-title em {
+.ski-title span {
   color: #b94419;
-}
-.ski-title p {
-  display: inline-block;
-  margin-top: 14px;
-  padding: 5px 12px;
-  border-radius: 20px;
-  background: #f8fcffea;
-  font-weight: 800;
-  font-size: 0.83rem;
 }
 .ski-best {
   position: absolute;
@@ -158,20 +152,12 @@
   font-size: 0.78rem;
   white-space: nowrap;
 }
-@media (max-width: 460px) {
-  .ski-title h1 {
-    font-size: clamp(3.25rem, 15vw, 4.6rem);
-  }
-}
 @media (max-height: 440px) {
   .ski-title {
     top: max(13%, env(safe-area-inset-top) + 45px);
   }
   .ski-title h1 {
     font-size: clamp(2.6rem, 14vh, 4.3rem);
-  }
-  .ski-title p {
-    margin-top: 7px;
   }
   .ski-start-cta {
     min-height: 45px;
@@ -345,6 +331,26 @@
   color: #173253;
   background: #ffdc5a;
   border-color: #efab32;
+}
+.ski-dodge-prompt {
+  position: absolute;
+  z-index: 2;
+  top: max(98px, calc(env(safe-area-inset-top) + 84px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffda53;
+  color: #173253;
+  border: 2px solid currentColor;
+  border-radius: 12px;
+  box-shadow: 0 3px #173253;
+  padding: 7px 13px;
+  font-size: 1rem;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .ski-key-hint {
   display: none;

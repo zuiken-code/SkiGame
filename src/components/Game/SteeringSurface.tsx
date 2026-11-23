@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { GameInput } from '../../game/simulation'
+import { readStick, stickRadius } from '../../game/joystick'
 
-const stickRadius = 43
 const movementKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowDown', 'KeyA', 'KeyD', 'KeyS'])
 
 interface SteeringProps {
@@ -73,8 +73,7 @@ export default function SteeringSurface({ input, wakeAudio }: SteeringProps) {
     const dx = event.clientX - origin.x
     const dy = event.clientY - origin.y
     const scale = Math.max(stickRadius, Math.hypot(dx, dy))
-    input.current.steer = dx / scale
-    input.current.brake = Math.max(0, dy / scale)
+    input.current = readStick(dx, dy)
     if (knob.current) {
       knob.current.style.transform =
         'translate(' + (dx * stickRadius) / scale + 'px, ' + (dy * stickRadius) / scale + 'px)'

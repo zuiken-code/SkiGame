@@ -53,9 +53,8 @@ export function StartOverlay({
       </button>
       <div className="ski-title">
         <h1>
-          POWDER <em>CHASE</em>
+          雪山<span>おにごっこ</span>
         </h1>
-        <p>雪山で、スキー鬼ごっこ！</p>
       </div>
       <div className="ski-best">
         <Trophy size={15} /> ベスト <strong>{best.toLocaleString('ja-JP')} m</strong>
