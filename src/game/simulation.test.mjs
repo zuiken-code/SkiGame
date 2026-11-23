@@ -79,7 +79,6 @@ test('passing close to a rival outside the reach of its gloves is safe', () => {
   rival.x = game.x
   rival.distance = game.distance - 0.1
   rival.reachTimer = 0.6
-  rival.reachCooldown = 1
   rival.reachX = 1
   rival.reachDownhill = 0
   stepGame(game, neutral, tick)
@@ -124,6 +123,29 @@ test('a sharp turn away trips a rival reaching from the side', () => {
     stepGame(game, { steer: -1, brake: 0 }, tick)
   }
   assert.equal(game.caught, false)
+  assert.equal(game.falls, 1)
+})
+
+test('a missed reach ends in a fall even without a sharp turn', () => {
+  const game = createGame(52)
+  const [rival] = game.enemies
+  game.enemies = [rival]
+  rival.distance = -3.4
+  rival.x = game.x
+  stepGame(game, neutral, tick)
+  assert.ok(rival.reachTimer > 0)
+  // Gently change lanes while the rival is committed straight downhill.
+  for (let frame = 0; frame < 75 && !game.falls && !game.caught; frame++) {
+    stepGame(game, { steer: 0.48, brake: 0 }, tick)
+  }
+  assert.equal(game.caught, false)
+  assert.equal(game.falls, 1)
+  assert.equal(rival.reachTimer, 0)
+  assert.equal(rival.fallTimer, RIVAL_FALL_TIME)
+  assert.equal(rival.lateralSpeed, 0)
+  const fallenAt = rival.distance
+  stepGame(game, neutral, 0.2)
+  assert.equal(rival.distance, fallenAt)
   assert.equal(game.falls, 1)
 })
 

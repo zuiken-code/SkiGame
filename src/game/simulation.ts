@@ -22,7 +22,6 @@ export interface Enemy {
   reachTimer: number
   reachX: number
   reachDownhill: number
-  reachCooldown: number
 }
 
 export interface GameState extends Course {
@@ -78,7 +77,6 @@ function addEnemy(state: GameState, distance: number, offset: number) {
     reachTimer: 0,
     reachX: 0,
     reachDownhill: 1,
-    reachCooldown: 0,
   })
 }
 
@@ -168,13 +166,10 @@ function moveEnemies(
     const reachX = playerXBefore - enemy.x
     const reachGap = distanceBefore - enemy.distance
     const range = Math.hypot(reachX, reachGap)
-    enemy.reachCooldown = Math.max(0, enemy.reachCooldown - tick)
-    enemy.reachTimer = Math.max(0, enemy.reachTimer - tick)
-    if (enemy.reachCooldown === 0 && range > 0.001 && range <= REACH_RANGE) {
+    if (enemy.reachTimer === 0 && range > 0.001 && range <= REACH_RANGE) {
       enemy.reachX = reachX / range
       enemy.reachDownhill = reachGap / range
       enemy.reachTimer = REACH_TIME
-      enemy.reachCooldown = REACH_TIME + 0.42
     }
     const reaching = enemy.reachTimer > 0
     // Once alongside the skier, a rival matches their downhill pace to close sideways.
@@ -203,6 +198,7 @@ function moveEnemies(
       continue
     }
     if (!reaching) continue
+    enemy.reachTimer = Math.max(0, enemy.reachTimer - tick)
     const lateralGap = state.x - enemy.x
     const forwardGap = state.distance - enemy.distance
     if (
@@ -221,13 +217,15 @@ function moveEnemies(
     const steeringAway =
       enemy.reachX * state.strongSteer >= -0.35 &&
       (state.x - playerXBefore) * state.strongSteer > 1.4 * tick
-    if (
+    const dodged =
       state.dodgeTimer > 0 &&
       steeringAway &&
       Math.hypot(lateralGap, forwardGap) <= REACH_RANGE + 0.5
-    ) {
+    if (dodged || enemy.reachTimer === 0) {
       enemy.fallTimer = RIVAL_FALL_TIME
-      enemy.fallSide = state.strongSteer
+      enemy.fallSide = dodged
+        ? state.strongSteer
+        : Math.sign(enemy.reachX || enemy.lateralSpeed) || 1
       enemy.reachTimer = 0
       enemy.lateralSpeed = 0
       state.falls++

@@ -71,7 +71,7 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
           <p>
             <strong>追手が両手を伸ばしたら急ターン</strong>
             <span>
-              後ろや横の追手が両手を伸ばしたら、大きく横へ。かわすと追手が転び、手に触れると捕まります。
+              手に触れると捕まります。追手はつかみ損ねると転び、急ターンでかわすとすぐに転びます。
             </span>
           </p>
         </div>
