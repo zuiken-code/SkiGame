@@ -1,12 +1,12 @@
 .game-screen {
-  --ski-dark: #101a23;
+  --ski-dark: #173253;
   --ski-ice: #f2f9fa;
-  --ski-orange: #ff6935;
+  --ski-orange: #ffca41;
   position: fixed;
   inset: 0;
   isolation: isolate;
   overflow: hidden;
-  background: #172633;
+  background: #dceef6;
   color: var(--ski-ice);
   font-family: Arial, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
   user-select: none;
@@ -27,6 +27,157 @@
 }
 .game-world canvas {
   display: block;
+}
+.ski-start {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  color: var(--ink);
+  background: linear-gradient(180deg, #c9edff91, #ffffff00 38%, #ffffff00 73%, #cae7f77a);
+}
+.ski-start-hit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.ski-start-hit:focus-visible {
+  outline: none;
+}
+.ski-start-hit:focus-visible .ski-start-cta {
+  outline: 3px solid #247fa5;
+  outline-offset: 5px;
+}
+.ski-start-cta {
+  position: absolute;
+  left: 50%;
+  bottom: max(8.8%, env(safe-area-inset-bottom) + 52px);
+  transform: translateX(-50%) rotate(-2deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 13px 23px;
+  min-width: min(260px, 84vw);
+  min-height: 58px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: var(--yellow);
+  box-shadow:
+    0 5px var(--ink),
+    0 10px 25px #1a3a5b32;
+  font-size: 1.03rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.ski-start-hit:not(:disabled):hover .ski-start-cta {
+  background: #ffe68a;
+}
+.ski-start-nav,
+.ski-start-sound {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top) + 5px);
+}
+.ski-start-nav {
+  display: flex;
+  gap: 6px;
+  left: max(12px, env(safe-area-inset-left) + 5px);
+}
+.ski-start-sound {
+  right: max(12px, env(safe-area-inset-right) + 5px);
+}
+.ski-start-nav button,
+.ski-start-sound {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0 9px;
+  color: var(--ink);
+  background: #f8fcffec;
+  border: 1px solid #8baec6;
+  border-radius: 12px;
+  box-shadow: 0 2px #33557033;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.ski-start-nav button:hover,
+.ski-start-sound:hover {
+  background: #fff3c0;
+}
+.ski-title,
+.ski-best {
+  pointer-events: none;
+  text-align: center;
+}
+.ski-title {
+  position: absolute;
+  top: max(13%, env(safe-area-inset-top) + 60px);
+  width: 100%;
+  padding-inline: 8px;
+}
+.ski-title h1 {
+  font: italic 800 clamp(3.4rem, 11vw, 8.3rem)/0.82 var(--display);
+  color: #173253;
+  letter-spacing: -0.035em;
+  transform: rotate(-4deg);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.09em #f7fcff;
+  text-shadow: 0 0.05em #a8cddf;
+}
+.ski-title em {
+  color: #b94419;
+}
+.ski-title p {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: #f8fcffea;
+  font-weight: 800;
+  font-size: 0.83rem;
+}
+.ski-best {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom) + 7px);
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: #f8fcfff0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+@media (max-width: 460px) {
+  .ski-title h1 {
+    font-size: clamp(3.25rem, 15vw, 4.6rem);
+  }
+}
+@media (max-height: 440px) {
+  .ski-title {
+    top: max(13%, env(safe-area-inset-top) + 45px);
+  }
+  .ski-title h1 {
+    font-size: clamp(2.6rem, 14vh, 4.3rem);
+  }
+  .ski-title p {
+    margin-top: 7px;
+  }
+  .ski-start-cta {
+    min-height: 45px;
+    bottom: 13%;
+    padding: 7px 15px;
+  }
 }
 .steering-surface {
   z-index: 1;
@@ -72,8 +223,8 @@
 .ski-hud-distance,
 .ski-hud-instruments,
 .ski-pause-button {
-  background: rgba(14, 25, 35, 0.92);
-  color: var(--ski-ice);
+  background: #f5fbfff2;
+  color: var(--ink);
   box-shadow: 0 2px 10px #14202e26;
 }
 .ski-hud-distance {
@@ -86,7 +237,7 @@
   display: flex;
   align-items: center;
   gap: 0.36rem;
-  color: #d2dce1;
+  color: #325676;
   font-size: 0.69rem;
   font-weight: 700;
   letter-spacing: 0.095em;
@@ -110,7 +261,7 @@
 }
 .ski-distance-number small {
   font-size: 1.03rem;
-  color: #bfccd2;
+  color: #405e7b;
 }
 .ski-hud-instruments {
   display: flex;
@@ -127,14 +278,14 @@
   gap: 0.25rem;
 }
 .ski-hud-instruments span + span {
-  border-left: 1px solid #52606a;
+  border-left: 1px solid #b7cedc;
   padding-left: 0.65rem;
 }
 .ski-hud-instruments svg {
   align-self: center;
   width: 0.95rem;
   height: 0.95rem;
-  color: #c2d2d7;
+  color: #3c6380;
 }
 .ski-hud-instruments b {
   font:
@@ -143,7 +294,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ski-hud-instruments small {
-  color: #c2d2d7;
+  color: #3c6380;
   font-size: 0.68rem;
 }
 .game-screen button {
@@ -156,7 +307,7 @@
 }
 .ski-pause-button {
   pointer-events: auto;
-  border: 1px solid #edf8fc52;
+  border: 1px solid #a8c5d9;
   border-radius: 0.32rem;
   width: 2.8rem;
   height: 2.8rem;
@@ -190,6 +341,11 @@
   color: #ffcaab;
   border-bottom: 2px solid var(--ski-orange);
 }
+.ski-dodged {
+  color: #173253;
+  background: #ffdc5a;
+  border-color: #efab32;
+}
 .ski-key-hint {
   display: none;
 }
@@ -208,32 +364,12 @@
   background: rgba(12, 22, 31, 0.64);
   padding: 1.25rem;
 }
-.ski-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-.ski-loading svg {
-  color: var(--ski-orange);
-}
-.ski-loading-back {
-  position: absolute;
-  bottom: max(1.5rem, env(safe-area-inset-bottom));
-  background: none;
-  border: 0;
-  color: var(--ski-ice);
-  padding: 0.75rem;
-  text-decoration: underline;
-}
 .ski-dialog {
   box-sizing: border-box;
   width: min(100%, 21rem);
   padding: 1.6rem;
   border: 1px solid #4d606b;
-  border-radius: 0.5rem;
+  border-radius: 1.25rem;
   background: var(--ski-dark);
   box-shadow: 0 1rem 4rem rgba(8, 17, 26, 0.23);
 }
@@ -277,6 +413,23 @@
   background: transparent;
   color: var(--ski-ice);
   border-color: #4d606b;
+}
+@media (max-width: 380px) {
+  .ski-hud {
+    gap: 6px;
+    padding-inline: max(7px, env(safe-area-inset-left)) max(7px, env(safe-area-inset-right));
+  }
+  .ski-hud-distance {
+    min-width: 72px;
+    padding-inline: 8px;
+  }
+  .ski-hud-instruments {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+  .ski-hud-instruments span + span {
+    padding-left: 5px;
+  }
 }
 @media (max-height: 440px) {
   .ski-dialog {

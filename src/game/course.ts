@@ -1,4 +1,4 @@
-export const COURSE_HALF_WIDTH = 7.2
+export const COURSE_HALF_WIDTH = 10
 
 export interface Obstacle {
   id: number
@@ -19,7 +19,7 @@ export function courseCenter(distance: number): number {
 }
 
 const laneWidth = 2.55
-const lanes = [-2, -1, 0, 1, 2]
+const lanes = [-3, -2, -1, 0, 1, 2, 3]
 
 export interface Course {
   obstacles: Obstacle[]
@@ -42,8 +42,8 @@ function addObstacle(course: Course, distance: number, offset: number, kind: Obs
 
 export function createCourse(random: () => number): Course {
   const course: Course = { obstacles: [], nextRow: 49, nextObstacleId: 1, openLane: 0, random }
-  addObstacle(course, 18, -2.6, 'rock')
-  addObstacle(course, 31, 3.2, 'pine')
+  addObstacle(course, 23, -2.6, 'rock')
+  addObstacle(course, 39, 3.2, 'pine')
   extendCourse(course, 0)
   return course
 }
@@ -58,7 +58,7 @@ export function extendCourse(course: Course, playerDistance: number) {
     const distance = course.nextRow
     const difficulty = Math.min(1, distance / 1100)
     const shift = Math.floor(random() * 3) - 1
-    course.openLane = Math.max(-2, Math.min(2, course.openLane + shift))
+    course.openLane = Math.max(lanes[0], Math.min(lanes[lanes.length - 1], course.openLane + shift))
     const available = lanes.filter((lane) => lane !== course.openLane)
     const count = random() < 0.22 + difficulty * 0.45 ? 2 : 1
     for (let index = 0; index < count; index++) {
@@ -66,6 +66,6 @@ export function extendCourse(course: Course, playerDistance: number) {
       const offset = lane * laneWidth + (random() - 0.5) * 0.48
       addObstacle(course, distance, offset, random() < 0.59 ? 'rock' : 'pine')
     }
-    course.nextRow += 16 + (1 - difficulty) * 4 + random() * 9
+    course.nextRow += 20 + (1 - difficulty) * 6 + random() * 10
   }
 }

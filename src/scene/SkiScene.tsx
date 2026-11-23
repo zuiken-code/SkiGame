@@ -7,6 +7,7 @@ import { createWorld } from './environment/world'
 export interface SkiSceneProps {
   simulation: { readonly current: GameState }
   paused?: boolean
+  preview?: boolean
   onReady?: () => void
   onUnavailable?: () => void
 }
@@ -27,10 +28,14 @@ class RendererBoundary extends Component<
   }
 }
 
-function AlpineWorld({ simulation, onReady, onUnavailable }: SkiSceneProps) {
+function AlpineWorld({ simulation, preview, onReady, onUnavailable }: SkiSceneProps) {
   const world = useMemo(createWorld, [])
   const ready = useRef(false)
   const renderer = useThree((store) => store.gl)
+  const invalidate = useThree((store) => store.invalidate)
+  useEffect(() => {
+    if (preview) invalidate()
+  }, [preview, invalidate])
   useEffect(() => () => world.dispose(), [world])
   useEffect(() => {
     const canvas = renderer.domElement

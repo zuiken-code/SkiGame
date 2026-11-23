@@ -1,5 +1,10 @@
 import * as THREE from 'three'
-import { COURSE_HALF_WIDTH, courseCenter, type GameState } from '../../game/simulation'
+import {
+  COURSE_HALF_WIDTH,
+  RIVAL_FALL_TIME,
+  courseCenter,
+  type GameState,
+} from '../../game/simulation'
 import {
   createCoursePole,
   createNetPanel,
@@ -41,8 +46,8 @@ function createBackdrop() {
   const group = new THREE.Group()
   const skyGeometry = new THREE.PlaneGeometry(710, 240)
   const skyColors = new Float32Array(12)
-  const top = new THREE.Color('#78b8d8')
-  const bottom = new THREE.Color('#eef8f6')
+  const top = new THREE.Color('#51bfe9')
+  const bottom = new THREE.Color('#e6faff')
   for (let v = 0; v < 4; v++) (v < 2 ? top : bottom).toArray(skyColors, v * 3)
   skyGeometry.setAttribute('color', new THREE.BufferAttribute(skyColors, 3))
   const sky = new THREE.Mesh(
@@ -185,21 +190,28 @@ export function createWorld() {
     rocks.finish()
     for (const rival of state.enemies) {
       const z = state.distance - rival.distance
-      rivals.place(rival.x, 0.055, z, 1.08, 1.08, 1.08, -rival.lean * 0.4, -rival.lean * 0.25)
-      actionShadows.place(rival.x + 0.26, 0.065, z + 0.31, 0.52, 1, 1.05, -0.28)
+      if (z > 22) continue
+      const fall =
+        rival.fallTimer > 0
+          ? Math.min(1, (RIVAL_FALL_TIME - rival.fallTimer) * 10, rival.fallTimer * 6)
+          : 0
+      const yaw = -rival.lean * 0.4 + fall * rival.fallSide * 0.86
+      const bank = -rival.lean * 0.25 + fall * rival.fallSide * 1.42
+      rivals.place(rival.x, 0.065 + fall * 0.15, z, 0.76, 0.76, 0.76, yaw, bank)
+      actionShadows.place(rival.x + 0.19, 0.065, z + 0.21, 0.38, 1, 0.75, -0.28)
     }
     rivals.finish()
     const hitWobble =
       state.slowTimer > 0 ? Math.min(0.12, state.slowTimer * 0.1) * Math.sin(state.elapsed * 23) : 0
     skier.position.set(state.x, 0.055, 0)
-    skier.scale.setScalar(1.1)
+    skier.scale.setScalar(0.78)
     skier.rotation.set(0, -state.lean * 0.43, -state.lean * 0.28 + hitWobble, 'YXZ')
-    actionShadows.place(state.x + 0.28, 0.065, 0.32, 0.54, 1, 1.06, -0.28 - state.lean * 0.21)
+    actionShadows.place(state.x + 0.2, 0.065, 0.23, 0.4, 1, 0.78, -0.28 - state.lean * 0.21)
     actionShadows.finish()
 
     const portrait = aspect < 1
     if (lastAspect !== aspect) {
-      camera.fov = portrait ? 63 : 52
+      camera.fov = portrait ? 70 : 55
       camera.updateProjectionMatrix()
       lastAspect = aspect
     }
@@ -211,9 +223,9 @@ export function createWorld() {
       state.x * 0.79 + center * 0.21,
       smooth,
     )
-    camera.position.y = portrait ? 6.6 : 6.9
-    camera.position.z = portrait ? 12.5 : 13.2
-    lookAt.set(THREE.MathUtils.lerp(lookAt.x, aimX, smooth), 1.15, -3.4)
+    camera.position.y = portrait ? 11.8 : 11.4
+    camera.position.z = portrait ? 21 : 21.2
+    lookAt.set(THREE.MathUtils.lerp(lookAt.x, aimX, smooth), 0.8, -2.4)
     camera.lookAt(lookAt)
     backdrop.position.x = camera.position.x * 0.75
     previous = state

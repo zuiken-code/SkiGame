@@ -9,19 +9,19 @@ import {
   MapPin,
   MousePointer2,
   Play,
+  RotateCcw,
+  Share2,
   Trophy,
   X,
 } from 'lucide-react'
 import { validName } from '../../services/profile'
 
-function Modal({
+export function Modal({
   title,
-  label,
   children,
   onClose,
 }: {
   title: string
-  label: string
   children: ReactNode
   onClose?: () => void
 }) {
@@ -42,17 +42,13 @@ function Modal({
       }}
     >
       <div className="dialog-top">
-        <span className="hero-label">
-          <i />
-          {label}
-        </span>
+        <h2>{title}</h2>
         {onClose && (
           <button className="icon-button" aria-label="閉じる" onClick={onClose}>
             <X size={18} />
           </button>
         )}
       </div>
-      <h2>{title}</h2>
       {children}
     </dialog>
   )
@@ -60,7 +56,7 @@ function Modal({
 
 export function Guide({ close, start }: { close: () => void; start: () => void }) {
   return (
-    <Modal title="操作ガイド" label="HOW TO PLAY" onClose={close}>
+    <Modal title="遊び方" onClose={close}>
       <p className="modal-lead">スキーは自動で前へ。指一本で進路と速度を調整しよう。</p>
       <div className="guide-rows">
         <div>
@@ -68,6 +64,15 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
           <p>
             <strong>好きな場所をタッチ</strong>
             <span>押した場所にジョイスティックが現れます。</span>
+          </p>
+        </div>
+        <div>
+          <RotateCcw />
+          <p>
+            <strong>捕まる直前に急ターン</strong>
+            <span>
+              追手がすぐ後ろに迫ったら、大きく横へ。うまくかわすと追手が転んで一時停止します。
+            </span>
           </p>
         </div>
         <div>
@@ -99,53 +104,6 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
   )
 }
 
-export function ProfileDialog({
-  current,
-  close,
-  save,
-}: {
-  current: string
-  close: () => void
-  save: (name: string) => void
-}) {
-  const [name, setName] = useState(current)
-  const [error, setError] = useState('')
-  function submit(e: FormEvent) {
-    e.preventDefault()
-    if (!validName(name)) {
-      setError('プレーヤー名は1〜16文字で入力してください。')
-      return
-    }
-    save(name.normalize('NFC').trim())
-  }
-  return (
-    <Modal title="プレーヤー設定" label="PLAYER PROFILE" onClose={close}>
-      <form onSubmit={submit} className="dialog-form">
-        <label htmlFor="player-name">プレーヤー名</label>
-        <input
-          id="player-name"
-          autoComplete="nickname"
-          placeholder="名前を入力"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <p className="modal-lead">
-          次にランキングへ登録するときに使う名前です。同じブラウザーから自分の順位を確認できます。
-        </p>
-        {error && (
-          <p role="alert" className="message-error">
-            {error}
-          </p>
-        )}
-        <button className="btn btn-primary full" type="submit">
-          <Check size={17} />
-          保存する
-        </button>
-      </form>
-    </Modal>
-  )
-}
-
 export interface Result {
   distance: number
   eliminated: number
@@ -165,6 +123,27 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
   const [rank, setRank] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'manual'>('idle')
+  const shareText = `⛷️ Powder Chase で ${result.distance.toLocaleString('ja-JP')} m 滑った！`
+  const gameUrl = new URL(window.location.pathname, window.location.origin).href
+  const shareMessage = `${shareText}\n${gameUrl}`
+
+  async function shareResult() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Powder Chase', text: shareText, url: gameUrl })
+        return
+      } catch (cause) {
+        if (cause instanceof DOMException && cause.name === 'AbortError') return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareMessage)
+      setShareStatus('copied')
+    } catch {
+      setShareStatus('manual')
+    }
+  }
   async function save(e: FormEvent) {
     e.preventDefault()
     if (busy) return
@@ -183,8 +162,7 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
     }
   }
   return (
-    <Modal title="滑走終了" label="RUN RESULT">
-      <p className="modal-lead">追手に捕まった！</p>
+    <Modal title="追手に捕まった！">
       <div className="result-score">
         <div>
           <MapPin size={13} />
@@ -204,6 +182,36 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
         <Crosshair size={16} />
         振り切った追手<strong>{result.eliminated} 人</strong>
       </p>
+      <div className="result-actions">
+        <button
+          className="btn btn-primary full result-replay"
+          onClick={replay}
+          disabled={busy}
+          autoFocus
+        >
+          <RotateCcw size={22} />
+          もう一回滑る
+        </button>
+        <button className="btn btn-outline full" type="button" onClick={shareResult}>
+          <Share2 size={17} />
+          結果を共有
+        </button>
+        {shareStatus === 'copied' && (
+          <p className="share-status" role="status">
+            結果をコピーしました
+          </p>
+        )}
+        {shareStatus === 'manual' && (
+          <label className="manual-share">
+            結果を選択してコピー
+            <textarea
+              readOnly
+              value={shareMessage}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </label>
+        )}
+      </div>
       {rank === null ? (
         <form onSubmit={save} className="dialog-form result-form">
           <label htmlFor="score-name">ランキングに載せる名前</label>
@@ -233,15 +241,9 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
           登録しました<strong>自己ベスト順位 {rank} 位</strong>
         </div>
       )}
-      <div className="result-actions">
-        <button className="btn btn-primary full" onClick={replay} disabled={busy}>
-          <Play size={15} fill="currentColor" />
-          もう一度滑る
-        </button>
-        <button className="text-button" onClick={home} disabled={busy}>
-          ベースキャンプに戻る
-        </button>
-      </div>
+      <button className="text-button result-home" onClick={home} disabled={busy}>
+        スタート画面に戻る
+      </button>
     </Modal>
   )
 }

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.functions.json",
@@ -15,7 +17,6 @@
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.2.0",
-    "@fontsource/space-mono": "^5.2.0",
     "@react-three/fiber": "^9.4.0",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",

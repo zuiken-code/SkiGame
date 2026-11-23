@@ -16,6 +16,8 @@ export interface Enemy {
   lean: number
   lateralSpeed: number
   chaseBonus: number
+  fallTimer: number
+  fallSide: number
 }
 
 export interface GameState extends Course {
@@ -32,12 +34,17 @@ export interface GameState extends Course {
   nextEnemyId: number
   nextEnemyAt: number
   accumulator: number
+  strongSteer: number
+  dodgeTimer: number
+  falls: number
 }
 
 const tick = 1 / 60
-const playerRadius = 0.4
-const enemyRadius = 0.42
+const playerRadius = 0.34
+const enemyRadius = 0.36
 const edge = COURSE_HALF_WIDTH - playerRadius
+const startSpeed = 21
+export const RIVAL_FALL_TIME = 1.8
 
 function clamp(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value))
@@ -61,6 +68,8 @@ function addEnemy(state: GameState, distance: number, offset: number) {
     lean: 0,
     lateralSpeed: 0,
     chaseBonus: 0.52 + state.random() * 0.52,
+    fallTimer: 0,
+    fallSide: 0,
   })
 }
 
@@ -71,7 +80,7 @@ export function createGame(seed = Math.floor(Math.random() * 4294967296)): GameS
     ...course,
     distance: 0,
     x: 0,
-    speed: 15,
+    speed: startSpeed,
     lean: 0,
     elapsed: 0,
     slowTimer: 0,
@@ -82,8 +91,13 @@ export function createGame(seed = Math.floor(Math.random() * 4294967296)): GameS
     nextEnemyId: 1,
     nextEnemyAt: 5 + course.random() * 2.5,
     accumulator: 0,
+    strongSteer: 0,
+    dodgeTimer: 0,
+    falls: 0,
   }
-  addEnemy(state, -7, 1.3)
+  addEnemy(state, -6.2, -1.35)
+  addEnemy(state, -8.2, 2.5)
+  addEnemy(state, -9.8, -3.1)
   return state
 }
 
@@ -96,6 +110,10 @@ function hits(x: number, distance: number, radius: number, obstacle: Obstacle): 
 
 function movePlayer(state: GameState, input: GameInput, cruise: number) {
   const steer = clamp(input.steer, -1, 1)
+  const strongSteer = Math.abs(steer) >= 0.82 ? Math.sign(steer) : 0
+  if (strongSteer && strongSteer !== state.strongSteer) state.dodgeTimer = 0.24
+  state.strongSteer = strongSteer
+  state.dodgeTimer = strongSteer ? Math.max(0, state.dodgeTimer - tick) : 0
   const brake = clamp(input.brake, 0, 1)
   const center = courseCenter(state.distance)
   const edgeDrag = clamp((Math.abs(state.x - center) - (edge - 0.8)) / 0.8, 0, 1)
@@ -106,7 +124,7 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   state.distance += state.speed * tick
 
   const newCenter = courseCenter(state.distance)
-  const turnSpeed = 10.6 + state.speed * 0.09
+  const turnSpeed = 10.6 + Math.min(23, state.speed * (23 / 32)) * 0.09
   state.lateralSpeed += (steer * turnSpeed - state.lateralSpeed) * (tick * 8)
   // The skis follow part of the bend. The remaining drift is steered by the player.
   state.x += state.lateralSpeed * tick + (newCenter - center) * 0.46
@@ -121,9 +139,17 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   }
 }
 
-function moveEnemies(state: GameState, cruise: number) {
+function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
   for (let index = state.enemies.length - 1; index >= 0; index--) {
     const enemy = state.enemies[index]
+    if (enemy.distance < state.distance - 52) {
+      state.enemies.splice(index, 1)
+      continue
+    }
+    if (enemy.fallTimer > 0) {
+      enemy.fallTimer = Math.max(0, enemy.fallTimer - tick)
+      continue
+    }
     const originalCenter = courseCenter(enemy.distance)
     // Once alongside the skier, a rival matches their downhill pace to close sideways.
     enemy.distance = Math.min(
@@ -146,10 +172,19 @@ function moveEnemies(state: GameState, cruise: number) {
       state.eliminated++
       continue
     }
-    if (
-      Math.hypot(enemy.x - state.x, enemy.distance - state.distance) <
-      playerRadius + enemyRadius
-    ) {
+    const lateralGap = state.x - enemy.x
+    const forwardGap = state.distance - enemy.distance
+    const steeringAway =
+      lateralGap * state.strongSteer > 0 &&
+      (state.x - playerXBefore) * state.strongSteer > 3.5 * tick
+    if (state.dodgeTimer > 0 && steeringAway && Math.abs(lateralGap) < 1.25 && forwardGap < 1.95) {
+      enemy.fallTimer = RIVAL_FALL_TIME
+      enemy.fallSide = state.strongSteer
+      enemy.lateralSpeed = 0
+      state.falls++
+      continue
+    }
+    if (Math.hypot(lateralGap, forwardGap) < playerRadius + enemyRadius) {
       state.caught = true
       return
     }
@@ -158,14 +193,15 @@ function moveEnemies(state: GameState, cruise: number) {
 
 function advance(state: GameState, input: GameInput) {
   state.elapsed += tick
-  const cruise = 15 + 8 * Math.min(1, state.distance / 1500)
+  const cruise = startSpeed + 11 * Math.min(1, state.distance / 1500)
+  const playerXBefore = state.x
   movePlayer(state, input, cruise)
   extendCourse(state, state.distance)
-  moveEnemies(state, cruise)
+  moveEnemies(state, cruise, playerXBefore)
   if (state.caught || state.elapsed < state.nextEnemyAt) return
   const difficulty = Math.min(1, state.distance / 1100)
   state.nextEnemyAt = state.elapsed + 5.1 - difficulty * 2 + state.random() * 3.5
-  if (state.enemies.length < 5) {
+  if (state.enemies.filter((enemy) => enemy.distance > state.distance - 22).length < 6) {
     const offset = state.x - courseCenter(state.distance) + (state.random() - 0.5) * 6
     addEnemy(state, state.distance - 7.5 - state.random() * 4, offset)
   }

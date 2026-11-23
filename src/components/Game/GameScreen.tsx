@@ -1,50 +1,66 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  CornerDownLeft,
-  Gauge,
-  MountainSnow,
-  Pause,
-  Play,
-  TriangleAlert,
-  UsersRound,
-} from 'lucide-react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound } from 'lucide-react'
 import { createGame, stepGame } from '../../game/simulation'
 import type { GameState } from '../../game/simulation'
 import { SkiScene } from '../../scene/SkiScene'
 import SteeringSurface from './SteeringSurface'
+import { StartOverlay } from './StartOverlay'
 import { useGameSound } from './useGameSound'
 import './game.css'
 
-type Phase = 'loading' | 'playing' | 'paused' | 'finished' | 'unavailable'
+type Phase = 'loading' | 'ready' | 'playing' | 'paused' | 'finished' | 'unavailable'
+
+export interface RunControls {
+  start: () => void
+  reset: () => void
+}
 
 interface GameScreenProps {
-  onExit: () => void
+  ref: Ref<RunControls>
   onStart: () => void
   onFinish: (distance: number, eliminated: number) => void
+  onGuide: () => void
+  onRanking: () => void
+  onSound: () => void
   soundEnabled: boolean
+  best: number
 }
 
 function readHud(game: GameState) {
   const gap = game.enemies.reduce(
     (closest, rival) =>
-      Math.min(closest, Math.hypot(rival.x - game.x, rival.distance - game.distance)),
+      rival.fallTimer > 0
+        ? closest
+        : Math.min(closest, Math.hypot(rival.x - game.x, rival.distance - game.distance)),
     Infinity,
   )
   return {
     distance: Math.floor(game.distance),
     speed: Math.round(game.speed * 3.6),
-    rivals: game.enemies.length,
+    rivals: game.enemies.filter(
+      (enemy) => enemy.fallTimer === 0 && game.distance - enemy.distance < 22,
+    ).length,
     slowing: game.slowTimer > 0.35,
     danger: gap < 3,
     showHint: game.elapsed < 5.5,
   }
 }
 
-export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: GameScreenProps) {
+export default function GameScreen({
+  ref,
+  onFinish,
+  onStart,
+  onGuide,
+  onRanking,
+  onSound,
+  soundEnabled,
+  best,
+}: GameScreenProps) {
   const [simulation] = useState(() => ({ current: createGame() }))
   const [phase, setPhase] = useState<Phase>('loading')
   const [confirmExit, setConfirmExit] = useState(false)
   const [hud, setHud] = useState(() => readHud(simulation.current))
+  const [dodgeNotice, setDodgeNotice] = useState(false)
   const phaseRef = useRef<Phase>(phase)
   const callbacks = useRef({ onStart, onFinish })
   const input = useRef({ steer: 0, brake: 0 })
@@ -60,11 +76,26 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
   }, [])
 
   const sceneReady = useCallback(() => {
-    if (phaseRef.current !== 'loading') return
-    changePhase(document.hidden ? 'paused' : 'playing')
-    if (!document.hidden && navigator.userActivation?.hasBeenActive) wake()
+    if (phaseRef.current === 'loading') changePhase('ready')
+  }, [changePhase])
+
+  const start = useCallback(() => {
+    if (phaseRef.current !== 'ready' && phaseRef.current !== 'finished') return
+    simulation.current = createGame()
+    input.current = { steer: 0, brake: 0 }
+    setHud(readHud(simulation.current))
+    setDodgeNotice(false)
+    wake()
     callbacks.current.onStart()
-  }, [changePhase, wake])
+    changePhase(document.hidden ? 'paused' : 'playing')
+  }, [changePhase, simulation, wake])
+
+  const reset = useCallback(() => {
+    simulation.current = createGame()
+    changePhase('ready')
+  }, [changePhase, simulation])
+
+  useImperativeHandle(ref, () => ({ start, reset }), [start, reset])
 
   const sceneUnavailable = useCallback(() => {
     if (phaseRef.current !== 'finished') changePhase('unavailable')
@@ -110,10 +141,12 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
     let frame: number
     let last = performance.now()
     let lastHud = last
+    let dodgeUntil = 0
     function update(now: number) {
       if (phaseRef.current !== 'playing') return
       const previousHits = game.eliminated
       const previousSlow = game.slowTimer
+      const previousFalls = game.falls
       stepGame(game, input.current, (now - last) / 1000)
       last = now
       if (game.caught) {
@@ -122,10 +155,15 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
         callbacks.current.onFinish(Math.floor(game.distance), game.eliminated)
         return
       }
-      if (game.eliminated > previousHits) play('escape')
+      if (game.falls > previousFalls) {
+        dodgeUntil = game.elapsed + 1.25
+        setDodgeNotice(true)
+        play('escape')
+      } else if (game.eliminated > previousHits) play('escape')
       else if (game.slowTimer > previousSlow) play('impact')
       if (now - lastHud >= 90) {
         setHud(readHud(game))
+        setDodgeNotice(game.elapsed < dodgeUntil)
         lastHud = now
       }
       frame = requestAnimationFrame(update)
@@ -142,11 +180,23 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
         <div className="game-world">
           <SkiScene
             simulation={simulation}
-            paused={phase === 'paused' || phase === 'finished'}
+            preview={phase === 'ready'}
+            paused={phase !== 'loading' && phase !== 'playing'}
             onReady={sceneReady}
             onUnavailable={sceneUnavailable}
           />
         </div>
+      )}
+      {(phase === 'ready' || phase === 'loading') && (
+        <StartOverlay
+          ready={phase === 'ready'}
+          onPlay={start}
+          onGuide={onGuide}
+          onRanking={onRanking}
+          best={best}
+          sound={soundEnabled}
+          onSound={onSound}
+        />
       )}
       {phase === 'playing' && <SteeringSurface input={input} wakeAudio={wake} />}
       {showHud && (
@@ -185,7 +235,9 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
       )}
       {phase === 'playing' && (
         <div className="ski-feedback">
-          {hud.slowing || hud.danger ? (
+          {dodgeNotice ? (
+            <div className="ski-alert ski-dodged">急ターン成功！ 追手が転倒</div>
+          ) : hud.slowing || hud.danger ? (
             <div className="ski-alert">
               <TriangleAlert size={15} />
               {hud.slowing ? '障害物に当たって減速！' : '追手が接近！'}
@@ -198,17 +250,6 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
               </div>
             )
           )}
-        </div>
-      )}
-      {phase === 'loading' && (
-        <div className="ski-cover">
-          <div className="ski-loading" role="status">
-            <MountainSnow size={32} />
-            <span>コースを準備中…</span>
-          </div>
-          <button type="button" className="ski-loading-back" onClick={onExit}>
-            ベースキャンプに戻る
-          </button>
         </div>
       )}
       {phase === 'paused' && (
@@ -234,7 +275,7 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
               type="button"
               className="ski-primary"
               autoFocus
-              onClick={confirmExit ? onExit : resumeGame}
+              onClick={confirmExit ? reset : resumeGame}
             >
               {confirmExit ? <CornerDownLeft size={17} /> : <Play size={16} fill="currentColor" />}
               {confirmExit ? '終了して戻る' : '滑走を再開'}
@@ -244,7 +285,7 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
               className="ski-secondary"
               onClick={() => setConfirmExit(!confirmExit)}
             >
-              {confirmExit ? 'キャンセル' : 'ベースキャンプに戻る'}
+              {confirmExit ? 'キャンセル' : 'スタート画面に戻る'}
             </button>
           </section>
         </div>
@@ -257,8 +298,8 @@ export default function GameScreen({ onExit, onFinish, onStart, soundEnabled }: 
             </div>
             <h2>コースを表示できません</h2>
             <p>WebGL を利用できるブラウザーで、ページを開き直してください。</p>
-            <button type="button" className="ski-primary" onClick={onExit}>
-              ベースキャンプに戻る
+            <button type="button" className="ski-primary" onClick={() => window.location.reload()}>
+              再読み込み
             </button>
           </section>
         </div>

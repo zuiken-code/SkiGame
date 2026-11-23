@@ -1,4 +1,4 @@
-import { ArrowLeft, FlagTriangleRight, LoaderCircle, RotateCw, Trophy } from 'lucide-react'
+import { FlagTriangleRight, LoaderCircle, RotateCw } from 'lucide-react'
 import type { Leaderboard, LeaderboardEntry } from '../../services/leaderboard'
 
 export interface BoardState {
@@ -72,63 +72,21 @@ export function ScoreList({
   )
 }
 
-export function Ranking({
-  board,
-  refresh,
-  back,
-}: {
-  board: BoardState
-  refresh: () => void
-  back: () => void
-}) {
+export function OwnRank({ board }: { board: BoardState }) {
   return (
-    <main className="rank-page wrap">
-      <button className="text-button back" onClick={back}>
-        <ArrowLeft size={16} />
-        ベースキャンプ
-      </button>
-      <div className="rank-title">
-        <div>
-          <div className="hero-label">
-            <i /> LEADERBOARD
-          </div>
-          <h1>ランキング</h1>
-        </div>
-        <button
-          className="icon-button"
-          aria-label="ランキングを更新"
-          onClick={refresh}
-          disabled={board.loading}
-        >
-          <RotateCw size={18} className={board.loading ? 'spin' : ''} />
-        </button>
-      </div>
-      <div className="panel ranking-panel">
-        <div className="panel-heading">
-          <div className="heading-icon">
-            <Trophy />
-          </div>
-          <div>
-            <span className="kicker">DISTANCE RANKING</span>
-            <h2>滑走距離 TOP 10</h2>
-          </div>
-        </div>
-        <ScoreList board={board} limit={10} refresh={refresh} />
-      </div>
-      <div className="panel own-ranking">
-        <h2>自分の順位</h2>
-        {board.data?.me ? (
-          <Row entry={board.data.me} />
-        ) : (
-          <p>
-            {board.error
-              ? 'ランキングに接続すると確認できます。'
-              : board.loading
-                ? '読み込み中…'
-                : '滑走後にプレーヤー名と記録を登録すると表示されます。'}
-          </p>
-        )}
-      </div>
-    </main>
+    <section className="own-ranking">
+      <h3>自分の順位</h3>
+      {board.data?.me ? (
+        <Row entry={board.data.me} />
+      ) : (
+        <p>
+          {board.error
+            ? 'ランキングに接続すると確認できます。'
+            : board.loading
+              ? '読み込み中…'
+              : '滑走後にプレーヤー名と記録を登録すると表示されます。'}
+        </p>
+      )}
+    </section>
   )
 }
