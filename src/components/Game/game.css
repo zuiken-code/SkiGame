@@ -332,26 +332,6 @@
   background: #ffdc5a;
   border-color: #efab32;
 }
-.ski-dodge-prompt {
-  position: absolute;
-  z-index: 2;
-  top: max(98px, calc(env(safe-area-inset-top) + 84px));
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #ffda53;
-  color: #173253;
-  border: 2px solid currentColor;
-  border-radius: 12px;
-  box-shadow: 0 3px #173253;
-  padding: 7px 13px;
-  font-size: 1rem;
-  font-weight: 900;
-  white-space: nowrap;
-  pointer-events: none;
-}
 .ski-key-hint {
   display: none;
 }

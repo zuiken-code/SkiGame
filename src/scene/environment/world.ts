@@ -13,7 +13,8 @@ import {
   createRock,
 } from '../models/courseObjects'
 import { noise } from '../models/geometry'
-import { createSkier } from '../models/skier'
+import { createReachArms, createSkier } from '../models/skier'
+import { RIVAL_SCALE, armExtension } from '../../game/reach'
 import { Instances } from './instances'
 import { createPiste } from './piste'
 import { createTracks } from './tracks'
@@ -96,14 +97,21 @@ export function createWorld() {
   const forestShadows = new Instances(shadowShape, shadowMaterial, 135)
   const actionShadows = new Instances(shadowShape, shadowMaterial, 96)
   const rivals = new Instances(createSkier(true), colorMaterial, 16)
-  const slideRings = new Instances(
-    new THREE.RingGeometry(0.74, 0.87, 32).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: '#e5a200' }),
-    16,
-  )
+  const grabbingSkis = new Instances(createSkier(true, 'skis'), colorMaterial, 16)
+  const grabbingTorso = new Instances(createSkier(true, 'torso'), colorMaterial, 16)
+  const grabbingArms = new Instances(createReachArms(), colorMaterial, 16)
   const skier = new THREE.Mesh(createSkier(), colorMaterial)
   scenery.add(forest.mesh, poles.mesh, nets.mesh, forestShadows.mesh)
-  group.add(coursePines.mesh, rocks.mesh, actionShadows.mesh, slideRings.mesh, rivals.mesh, skier)
+  group.add(
+    coursePines.mesh,
+    rocks.mesh,
+    actionShadows.mesh,
+    rivals.mesh,
+    grabbingSkis.mesh,
+    grabbingTorso.mesh,
+    grabbingArms.mesh,
+    skier,
+  )
   const lookAt = new THREE.Vector3()
   let anchor = Infinity
   let previous: GameState | undefined
@@ -200,18 +208,47 @@ export function createWorld() {
         rival.fallTimer > 0
           ? Math.min(1, (RIVAL_FALL_TIME - rival.fallTimer) * 10, rival.fallTimer * 6)
           : 0
-      const sliding = rival.slideTimer > 0
-      const yaw = -rival.lean * 0.4 + fall * rival.fallSide * 0.86 + (sliding ? 0.58 : 0)
-      const bank = -rival.lean * 0.25 + fall * rival.fallSide * 1.42 - (sliding ? 0.48 : 0)
-      rivals.place(rival.x, 0.065 + fall * 0.15, z, 0.76, sliding ? 0.57 : 0.76, 0.76, yaw, bank)
-      if (sliding) {
-        const pulse = 1.05 + Math.sin(state.elapsed * 15) * 0.09
-        slideRings.place(rival.x, 0.078, z, pulse, 1, pulse * 1.22, yaw)
+      if (rival.reachTimer > 0) {
+        const aim = Math.atan2(-rival.reachX, rival.reachDownhill)
+        grabbingSkis.place(
+          rival.x,
+          0.065,
+          z,
+          RIVAL_SCALE,
+          RIVAL_SCALE,
+          RIVAL_SCALE,
+          -rival.lean * 0.28,
+        )
+        grabbingTorso.place(rival.x, 0.065, z, RIVAL_SCALE, RIVAL_SCALE, RIVAL_SCALE, aim)
+        grabbingArms.place(
+          rival.x,
+          0.065,
+          z,
+          RIVAL_SCALE,
+          RIVAL_SCALE,
+          RIVAL_SCALE * armExtension(rival.reachTimer),
+          aim,
+        )
+      } else {
+        const yaw = -rival.lean * 0.4 + fall * rival.fallSide * 0.86
+        const bank = -rival.lean * 0.25 + fall * rival.fallSide * 1.42
+        rivals.place(
+          rival.x,
+          0.065 + fall * 0.15,
+          z,
+          RIVAL_SCALE,
+          RIVAL_SCALE,
+          RIVAL_SCALE,
+          yaw,
+          bank,
+        )
       }
       actionShadows.place(rival.x + 0.19, 0.065, z + 0.21, 0.38, 1, 0.75, -0.28)
     }
     rivals.finish()
-    slideRings.finish()
+    grabbingSkis.finish()
+    grabbingTorso.finish()
+    grabbingArms.finish()
     const hitWobble =
       state.slowTimer > 0 ? Math.min(0.12, state.slowTimer * 0.1) * Math.sin(state.elapsed * 23) : 0
     skier.position.set(state.x, 0.055, 0)

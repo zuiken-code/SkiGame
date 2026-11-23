@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound, Zap } from 'lucide-react'
+import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound } from 'lucide-react'
 import { createGame, stepGame } from '../../game/simulation'
 import type { GameState } from '../../game/simulation'
 import { SkiScene } from '../../scene/SkiScene'
@@ -27,13 +27,6 @@ interface GameScreenProps {
 }
 
 function readHud(game: GameState) {
-  const gap = game.enemies.reduce(
-    (closest, rival) =>
-      rival.fallTimer > 0
-        ? closest
-        : Math.min(closest, Math.hypot(rival.x - game.x, rival.distance - game.distance)),
-    Infinity,
-  )
   return {
     distance: Math.floor(game.distance),
     speed: Math.round(game.speed * 3.6),
@@ -41,8 +34,6 @@ function readHud(game: GameState) {
       (enemy) => enemy.fallTimer === 0 && game.distance - enemy.distance < 22,
     ).length,
     slowing: game.slowTimer > 0.35,
-    sliding: game.enemies.some((rival) => rival.slideTimer > 0),
-    danger: gap < 3,
     showHint: game.elapsed < 5.5,
   }
 }
@@ -143,7 +134,6 @@ export default function GameScreen({
     let last = performance.now()
     let lastHud = last
     let dodgeUntil = 0
-    let sliding = game.enemies.some((rival) => rival.slideTimer > 0)
     function update(now: number) {
       if (phaseRef.current !== 'playing') return
       const previousHits = game.eliminated
@@ -163,14 +153,11 @@ export default function GameScreen({
         play('escape')
       } else if (game.eliminated > previousHits) play('escape')
       else if (game.slowTimer > previousSlow) play('impact')
-      const hasSlide = game.enemies.some((rival) => rival.slideTimer > 0)
-      if (hasSlide && !sliding) play('warning')
-      if (hasSlide !== sliding || now - lastHud >= 90) {
+      if (now - lastHud >= 90) {
         setHud(readHud(game))
         setDodgeNotice(game.elapsed < dodgeUntil)
         lastHud = now
       }
-      sliding = hasSlide
       frame = requestAnimationFrame(update)
     }
     frame = requestAnimationFrame(update)
@@ -241,11 +228,11 @@ export default function GameScreen({
       {phase === 'playing' && (
         <div className="ski-feedback">
           {dodgeNotice ? (
-            <div className="ski-alert ski-dodged">急ターン成功！ 追手が転倒</div>
-          ) : hud.slowing || hud.danger ? (
+            <div className="ski-alert ski-dodged">追手が転倒</div>
+          ) : hud.slowing ? (
             <div className="ski-alert">
               <TriangleAlert size={15} />
-              {hud.slowing ? '障害物に当たって減速！' : '追手が接近！'}
+              障害物に当たって減速！
             </div>
           ) : (
             hud.showHint && (
@@ -255,11 +242,6 @@ export default function GameScreen({
               </div>
             )
           )}
-        </div>
-      )}
-      {phase === 'playing' && hud.sliding && (
-        <div className="ski-dodge-prompt" role="status">
-          <Zap size={19} fill="currentColor" /> 今だ！急ターン
         </div>
       )}
       {phase === 'paused' && (

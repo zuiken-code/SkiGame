@@ -1,5 +1,6 @@
 import { COURSE_HALF_WIDTH, courseCenter, createCourse, extendCourse } from './course.ts'
 import type { Course, Obstacle } from './course.ts'
+import { REACH_RANGE, REACH_TIME, touchesGlove } from './reach.ts'
 
 export { COURSE_HALF_WIDTH, courseCenter }
 export type { Obstacle }
@@ -18,9 +19,10 @@ export interface Enemy {
   chaseBonus: number
   fallTimer: number
   fallSide: number
-  slideTimer: number
-  slideOffset: number
-  slideCooldown: number
+  reachTimer: number
+  reachX: number
+  reachDownhill: number
+  reachCooldown: number
 }
 
 export interface GameState extends Course {
@@ -47,9 +49,6 @@ const playerRadius = 0.34
 const enemyRadius = 0.36
 const edge = COURSE_HALF_WIDTH - playerRadius
 const startSpeed = 21
-const slideRange = 7.5
-const slideTime = 1.25
-const slideWidth = 3.2
 export const RIVAL_FALL_TIME = 1.8
 
 function clamp(value: number, low: number, high: number): number {
@@ -76,9 +75,10 @@ function addEnemy(state: GameState, distance: number, offset: number) {
     chaseBonus: 0.52 + state.random() * 0.52,
     fallTimer: 0,
     fallSide: 0,
-    slideTimer: 0,
-    slideOffset: 0,
-    slideCooldown: 0,
+    reachTimer: 0,
+    reachX: 0,
+    reachDownhill: 1,
+    reachCooldown: 0,
   })
 }
 
@@ -147,7 +147,12 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   }
 }
 
-function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
+function moveEnemies(
+  state: GameState,
+  cruise: number,
+  playerXBefore: number,
+  distanceBefore: number,
+) {
   const playerOffset = state.x - courseCenter(state.distance)
   for (let index = state.enemies.length - 1; index >= 0; index--) {
     const enemy = state.enemies[index]
@@ -160,31 +165,31 @@ function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
       continue
     }
     const originalCenter = courseCenter(enemy.distance)
-    const gap = state.distance - enemy.distance
-    enemy.slideCooldown = Math.max(0, enemy.slideCooldown - tick)
-    if (enemy.slideTimer > 0) enemy.slideTimer = Math.max(0, enemy.slideTimer - tick)
-    if (
-      enemy.slideCooldown === 0 &&
-      enemy.slideTimer === 0 &&
-      gap >= 0.9 &&
-      gap <= slideRange &&
-      Math.abs(playerOffset - (enemy.x - originalCenter)) <= slideWidth
-    ) {
-      enemy.slideOffset = playerOffset
-      enemy.slideTimer = slideTime
-      enemy.slideCooldown = slideTime + 0.85
+    const reachX = playerXBefore - enemy.x
+    const reachGap = distanceBefore - enemy.distance
+    const range = Math.hypot(reachX, reachGap)
+    enemy.reachCooldown = Math.max(0, enemy.reachCooldown - tick)
+    enemy.reachTimer = Math.max(0, enemy.reachTimer - tick)
+    if (enemy.reachCooldown === 0 && range > 0.001 && range <= REACH_RANGE) {
+      enemy.reachX = reachX / range
+      enemy.reachDownhill = reachGap / range
+      enemy.reachTimer = REACH_TIME
+      enemy.reachCooldown = REACH_TIME + 0.42
     }
-    const sliding = enemy.slideTimer > 0
+    const reaching = enemy.reachTimer > 0
     // Once alongside the skier, a rival matches their downhill pace to close sideways.
     enemy.distance = Math.min(
       state.distance + 0.15,
-      enemy.distance + (cruise + enemy.chaseBonus + (sliding ? 2.2 : 0)) * tick,
+      enemy.distance +
+        (cruise + enemy.chaseBonus + (reaching ? 4.4 * Math.max(0, enemy.reachDownhill) : 0)) *
+          tick,
     )
     const center = courseCenter(enemy.distance)
-    // The slide commits to the skier's line, leaving time to feint out of it.
-    const targetX = (sliding ? enemy.slideOffset : playerOffset) + center
-    const aim = clamp((targetX - enemy.x) * 1.95, -7.8, 7.8)
-    enemy.lateralSpeed += (aim - enemy.lateralSpeed) * (tick * 2.5)
+    // A rival commits to the grab's direction, even if the skier changes line.
+    const aim = reaching
+      ? enemy.reachX * 5.6
+      : clamp((playerOffset + center - enemy.x) * 1.95, -7.8, 7.8)
+    enemy.lateralSpeed += (aim - enemy.lateralSpeed) * (tick * (reaching ? 8 : 2.5))
     enemy.x = clamp(
       enemy.x + enemy.lateralSpeed * tick + center - originalCenter,
       center - edge,
@@ -197,22 +202,35 @@ function moveEnemies(state: GameState, cruise: number, playerXBefore: number) {
       state.eliminated++
       continue
     }
+    if (!reaching) continue
     const lateralGap = state.x - enemy.x
     const forwardGap = state.distance - enemy.distance
-    const steeringAway =
-      lateralGap * state.strongSteer >= -0.65 &&
-      (state.x - playerXBefore) * state.strongSteer > 1.4 * tick
-    if (sliding && state.dodgeTimer > 0 && steeringAway && Math.abs(lateralGap) <= slideWidth + 1) {
-      enemy.fallTimer = RIVAL_FALL_TIME
-      enemy.fallSide = state.strongSteer
-      enemy.slideTimer = 0
-      enemy.lateralSpeed = 0
-      state.falls++
-      continue
-    }
-    if (Math.hypot(lateralGap, forwardGap) < playerRadius + enemyRadius) {
+    if (
+      touchesGlove(
+        lateralGap,
+        forwardGap,
+        enemy.reachX,
+        enemy.reachDownhill,
+        enemy.reachTimer,
+        playerRadius,
+      )
+    ) {
       state.caught = true
       return
+    }
+    const steeringAway =
+      enemy.reachX * state.strongSteer >= -0.35 &&
+      (state.x - playerXBefore) * state.strongSteer > 1.4 * tick
+    if (
+      state.dodgeTimer > 0 &&
+      steeringAway &&
+      Math.hypot(lateralGap, forwardGap) <= REACH_RANGE + 0.5
+    ) {
+      enemy.fallTimer = RIVAL_FALL_TIME
+      enemy.fallSide = state.strongSteer
+      enemy.reachTimer = 0
+      enemy.lateralSpeed = 0
+      state.falls++
     }
   }
 }
@@ -221,9 +239,10 @@ function advance(state: GameState, input: GameInput) {
   state.elapsed += tick
   const cruise = startSpeed + 11 * Math.min(1, state.distance / 1500)
   const playerXBefore = state.x
+  const distanceBefore = state.distance
   movePlayer(state, input, cruise)
   extendCourse(state, state.distance)
-  moveEnemies(state, cruise, playerXBefore)
+  moveEnemies(state, cruise, playerXBefore, distanceBefore)
   if (state.caught || state.elapsed < state.nextEnemyAt) return
   const difficulty = Math.min(1, state.distance / 1100)
   state.nextEnemyAt = state.elapsed + 5.1 - difficulty * 2 + state.random() * 3.5

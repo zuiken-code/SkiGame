@@ -69,9 +69,9 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
         <div>
           <RotateCcw />
           <p>
-            <strong>「今だ！急ターン」が合図</strong>
+            <strong>追手が両手を伸ばしたら急ターン</strong>
             <span>
-              追手が体を傾けて滑り込んできたら、大きく横へ。うまくかわすと追手が転びます。
+              後ろや横の追手が両手を伸ばしたら、大きく横へ。かわすと追手が転び、手に触れると捕まります。
             </span>
           </p>
         </div>
@@ -86,9 +86,7 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
           <ArrowDown />
           <p>
             <strong>手前に引いて減速</strong>
-            <span>
-              指を離すと通常速度に戻ります。障害物に当たると減速し、追手に触れると滑走終了です。
-            </span>
+            <span>指を離すと通常速度に戻ります。障害物に当たると減速します。</span>
           </p>
         </div>
       </div>

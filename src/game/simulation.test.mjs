@@ -48,32 +48,60 @@ test('enemies disappear on obstacles and new pursuers arrive', () => {
   assert.ok(state.enemies.at(-1).distance < state.distance)
 })
 
-test('touching the pursuer ends the run and freezes the final distance', () => {
-  const state = createGame(7)
-  state.enemies[0].x = state.x
-  state.enemies[0].distance = state.distance - 0.1
-  stepGame(state, neutral, tick)
-  const finish = state.distance
-  assert.equal(state.caught, true)
-  stepGame(state, { steer: 1, brake: 1 }, 0.2)
-  assert.equal(state.distance, finish)
+test('glove contact from behind or from either side ends the run before body contact', () => {
+  for (const [x, distance] of [
+    [0, -3.1],
+    [-3.0, 0],
+    [3.0, 0],
+  ]) {
+    const state = createGame(7)
+    const [rival] = state.enemies
+    state.enemies = [rival]
+    rival.x = x
+    rival.distance = distance
+    stepGame(state, neutral, tick)
+    assert.ok(rival.reachTimer > 0)
+    if (x) assert.equal(rival.reachX, -Math.sign(x))
+    else assert.equal(rival.reachDownhill, 1)
+    for (let frame = 0; frame < 65 && !state.caught; frame++) stepGame(state, neutral, tick)
+    assert.equal(state.caught, true)
+    assert.ok(Math.hypot(state.x - rival.x, state.distance - rival.distance) > 0.8)
+    const finish = state.distance
+    stepGame(state, { steer: 1, brake: 1 }, 0.2)
+    assert.equal(state.distance, finish)
+  }
 })
 
-test('a sliding rival can be tripped from well behind and stops until it recovers', () => {
+test('passing close to a rival outside the reach of its gloves is safe', () => {
+  const game = createGame(7)
+  const [rival] = game.enemies
+  game.enemies = [rival]
+  rival.x = game.x
+  rival.distance = game.distance - 0.1
+  rival.reachTimer = 0.6
+  rival.reachCooldown = 1
+  rival.reachX = 1
+  rival.reachDownhill = 0
+  stepGame(game, neutral, tick)
+  assert.ok(Math.hypot(game.x - rival.x, game.distance - rival.distance) < 0.7)
+  assert.equal(game.caught, false)
+})
+
+test('a reaching rival can be tripped from behind and stops until it recovers', () => {
   const game = createGame(71)
   const [rival] = game.enemies
   rival.x = -0.25
-  rival.distance = -6.5
+  rival.distance = -3.5
   stepGame(game, neutral, tick)
-  assert.ok(rival.slideTimer > 0)
+  assert.ok(rival.reachTimer > 0)
   while (game.falls === 0 && !game.caught && game.elapsed < 0.24) {
     stepGame(game, { steer: 1, brake: 0 }, tick)
   }
   assert.equal(game.caught, false)
   assert.equal(game.falls, 1)
-  assert.ok(game.distance - rival.distance > 5)
+  assert.ok(game.distance - rival.distance > 2.5)
   assert.equal(rival.fallTimer, RIVAL_FALL_TIME)
-  assert.equal(rival.slideTimer, 0)
+  assert.equal(rival.reachTimer, 0)
   const fallDistance = rival.distance
   const fallX = rival.x
   game.enemies = [rival]
@@ -84,6 +112,21 @@ test('a sliding rival can be tripped from well behind and stops until it recover
   assert.ok(rival.distance > fallDistance)
 })
 
+test('a sharp turn away trips a rival reaching from the side', () => {
+  const game = createGame(16)
+  const [rival] = game.enemies
+  game.enemies = [rival]
+  rival.x = 3
+  rival.distance = 0
+  stepGame(game, neutral, tick)
+  assert.equal(rival.reachX, -1)
+  for (let frame = 0; frame < 16 && !game.falls && !game.caught; frame++) {
+    stepGame(game, { steer: -1, brake: 0 }, tick)
+  }
+  assert.equal(game.caught, false)
+  assert.equal(game.falls, 1)
+})
+
 test('a held turn started too early does not trip a rival', () => {
   const game = createGame(41)
   game.enemies = game.enemies.slice(0, 1)
@@ -91,19 +134,19 @@ test('a held turn started too early does not trip a rival', () => {
   rival.distance = -14
   for (let frame = 0; frame < 30; frame++) stepGame(game, { steer: 1, brake: 0 }, tick)
   rival.x = game.x - 1
-  rival.distance = game.distance - 5
+  rival.distance = game.distance - 2.8
   stepGame(game, { steer: 1, brake: 0 }, tick)
-  assert.ok(rival.slideTimer > 0)
+  assert.ok(rival.reachTimer > 0)
   assert.equal(game.falls, 0)
 })
 
-test('a distant rival keeps pursuing instead of sliding or falling', () => {
+test('a distant rival keeps pursuing instead of reaching or falling', () => {
   const game = createGame(41)
   const [rival] = game.enemies
   game.enemies = [rival]
   rival.distance = -12
   for (let frame = 0; frame < 20; frame++) stepGame(game, { steer: 1, brake: 0 }, tick)
-  assert.equal(rival.slideTimer, 0)
+  assert.equal(rival.reachTimer, 0)
   assert.equal(rival.fallTimer, 0)
 })
 
@@ -125,15 +168,15 @@ test('steering across the course and riding the boundary keep downhill speed', (
   assert.ok(turning.speed < straight.speed)
 })
 
-test('repeated reactions to sliding rivals can trip several in a single run', () => {
-  const game = createGame(3)
+test('repeated reactions to reaching rivals can trip several in a single run', () => {
+  const game = createGame(5)
   let turn = 0
   let framesLeft = 0
   while (!game.caught && game.distance < 600) {
     const center = courseCenter(game.distance)
-    const sliding = game.enemies.find((rival) => rival.slideTimer > 0)
-    if (framesLeft === 0 && sliding && !game.strongSteer) {
-      turn = game.x >= sliding.x ? 1 : -1
+    const reaching = game.enemies.find((rival) => rival.reachTimer > 0)
+    if (framesLeft === 0 && reaching && !game.strongSteer) {
+      turn = reaching.reachX >= 0 ? 1 : -1
       framesLeft = 10
     }
     const obstacle = game.obstacles.find(
@@ -152,7 +195,7 @@ test('repeated reactions to sliding rivals can trip several in a single run', ()
 })
 
 test('aiming at obstacles and turning away late can eliminate successive pursuers', () => {
-  const state = createGame(5)
+  const state = createGame(11)
   while (!state.caught && state.distance < 600) {
     const obstacle = state.obstacles.find(
       (item) => item.distance > state.distance - 1.4 && item.distance < state.distance + 21,
