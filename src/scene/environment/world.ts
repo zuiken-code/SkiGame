@@ -249,11 +249,9 @@ export function createWorld() {
     grabbingSkis.finish()
     grabbingTorso.finish()
     grabbingArms.finish()
-    const hitWobble =
-      state.slowTimer > 0 ? Math.min(0.12, state.slowTimer * 0.1) * Math.sin(state.elapsed * 23) : 0
     skier.position.set(state.x, 0.055, 0)
     skier.scale.setScalar(0.78)
-    skier.rotation.set(0, -state.lean * 0.43, -state.lean * 0.28 + hitWobble, 'YXZ')
+    skier.rotation.set(0, -state.lean * 0.43, -state.lean * 0.28, 'YXZ')
     actionShadows.place(state.x + 0.2, 0.065, 0.23, 0.4, 1, 0.78, -0.28 - state.lean * 0.21)
     actionShadows.finish()
 

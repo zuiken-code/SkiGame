@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react'
 import { ScoreList, OwnRank, type BoardState } from './components/Ranking/Ranking'
 import { Guide, Modal, ResultDialog, type Result } from './components/Dialogs/Dialogs'
 import type { RunControls } from './components/Game/GameScreen'
+import type { RunEndReason } from './game/simulation'
 import { readProfile, writeProfile } from './services/profile'
 import { getLeaderboard, startRun, submitScore } from './services/leaderboard'
 
@@ -41,11 +42,12 @@ export default function App() {
     setModal(null)
   }, [])
   const onFinish = useCallback(
-    (rawDistance: number, eliminated: number) => {
+    (rawDistance: number, eliminated: number, reason: RunEndReason) => {
       const distance = Math.floor(rawDistance)
       setResult({
         distance,
         eliminated,
+        reason,
         newBest: distance > Math.max(profile.best, board.data?.me?.distance ?? 0),
       })
       setProfile((p) => ({

@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { validName } from '../../services/profile'
+import type { RunEndReason } from '../../game/simulation'
 
 export function Modal({
   title,
@@ -79,14 +80,14 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
           <ArrowLeftRight />
           <p>
             <strong>左右にドラッグしてターン</strong>
-            <span>岩や木を引きつけてかわすと、後ろの追手をぶつけて振り切れます。</span>
+            <span>岩や木に当たると滑走終了。ぎりぎりでかわすと追手をぶつけて振り切れます。</span>
           </p>
         </div>
         <div>
           <ArrowDown />
           <p>
             <strong>手前に引いて減速</strong>
-            <span>指を離すと通常速度に戻ります。障害物に当たると減速します。</span>
+            <span>指を離すと通常速度に戻ります。</span>
           </p>
         </div>
       </div>
@@ -105,6 +106,7 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
 export interface Result {
   distance: number
   eliminated: number
+  reason: RunEndReason
   newBest: boolean
 }
 
@@ -160,7 +162,7 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
     }
   }
   return (
-    <Modal title="追手に捕まった！">
+    <Modal title={result.reason === 'obstacle' ? '障害物にぶつかった！' : '追手に捕まった！'}>
       <div className="result-score">
         <div>
           <MapPin size={13} />

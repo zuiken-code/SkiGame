@@ -4,6 +4,7 @@ import { REACH_RANGE, REACH_TIME, touchesGlove } from './reach.ts'
 
 export { COURSE_HALF_WIDTH, courseCenter }
 export type { Obstacle }
+export type RunEndReason = 'caught' | 'obstacle'
 
 export interface GameInput {
   steer: number
@@ -30,9 +31,8 @@ export interface GameState extends Course {
   speed: number
   lean: number
   elapsed: number
-  slowTimer: number
   eliminated: number
-  caught: boolean
+  endReason: RunEndReason | null
   enemies: Enemy[]
   lateralSpeed: number
   nextEnemyId: number
@@ -90,9 +90,8 @@ export function createGame(seed = Math.floor(Math.random() * 4294967296)): GameS
     speed: startSpeed,
     lean: 0,
     elapsed: 0,
-    slowTimer: 0,
     eliminated: 0,
-    caught: false,
+    endReason: null,
     enemies: [],
     lateralSpeed: 0,
     nextEnemyId: 1,
@@ -124,9 +123,7 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   const brake = clamp(input.brake, 0, 1)
   const center = courseCenter(state.distance)
   const targetSpeed = cruise * (1 - 0.4 * brake)
-  state.slowTimer = Math.max(0, state.slowTimer - tick)
-  const recovery = state.slowTimer > 0 ? 1.8 : 5
-  state.speed += clamp(targetSpeed - state.speed, -14 * tick, recovery * tick)
+  state.speed += clamp(targetSpeed - state.speed, -14 * tick, 5 * tick)
   state.distance += state.speed * tick
 
   const newCenter = courseCenter(state.distance)
@@ -136,12 +133,8 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   state.x += state.lateralSpeed * tick + (newCenter - center) * 0.46
   state.x = clamp(state.x, newCenter - edge, newCenter + edge)
   state.lean += (steer - state.lean) * (tick * 9)
-  for (const obstacle of state.obstacles) {
-    if (obstacle.playerHit || !hits(state.x, state.distance, playerRadius, obstacle)) continue
-    obstacle.playerHit = true
-    state.slowTimer = 1.2
-    state.speed = Math.max(5, state.speed * 0.5)
-    break
+  if (state.obstacles.some((obstacle) => hits(state.x, state.distance, playerRadius, obstacle))) {
+    state.endReason = 'obstacle'
   }
 }
 
@@ -211,7 +204,7 @@ function moveEnemies(
         playerRadius,
       )
     ) {
-      state.caught = true
+      state.endReason = 'caught'
       return
     }
     const steeringAway =
@@ -239,9 +232,10 @@ function advance(state: GameState, input: GameInput) {
   const playerXBefore = state.x
   const distanceBefore = state.distance
   movePlayer(state, input, cruise)
+  if (state.endReason) return
   extendCourse(state, state.distance)
   moveEnemies(state, cruise, playerXBefore, distanceBefore)
-  if (state.caught || state.elapsed < state.nextEnemyAt) return
+  if (state.endReason || state.elapsed < state.nextEnemyAt) return
   const difficulty = Math.min(1, state.distance / 1100)
   state.nextEnemyAt = state.elapsed + 5.1 - difficulty * 2 + state.random() * 3.5
   if (state.enemies.filter((enemy) => enemy.distance > state.distance - 22).length < 6) {
@@ -252,9 +246,9 @@ function advance(state: GameState, input: GameInput) {
 
 /** A fixed tick gives the same physics on 30, 60 and 120 Hz displays. */
 export function stepGame(state: GameState, input: GameInput, dt: number): void {
-  if (state.caught || !Number.isFinite(dt) || dt <= 0) return
+  if (state.endReason || !Number.isFinite(dt) || dt <= 0) return
   state.accumulator += Math.min(0.25, dt)
-  while (state.accumulator + 1e-10 >= tick && !state.caught) {
+  while (state.accumulator + 1e-10 >= tick && !state.endReason) {
     state.accumulator = Math.max(0, state.accumulator - tick)
     advance(state, input)
   }

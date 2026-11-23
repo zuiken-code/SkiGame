@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound } from 'lucide-react'
 import { createGame, stepGame } from '../../game/simulation'
-import type { GameState } from '../../game/simulation'
+import type { GameState, RunEndReason } from '../../game/simulation'
 import { SkiScene } from '../../scene/SkiScene'
 import SteeringSurface from './SteeringSurface'
 import { StartOverlay } from './StartOverlay'
@@ -18,7 +18,7 @@ export interface RunControls {
 interface GameScreenProps {
   ref: Ref<RunControls>
   onStart: () => void
-  onFinish: (distance: number, eliminated: number) => void
+  onFinish: (distance: number, eliminated: number, reason: RunEndReason) => void
   onGuide: () => void
   onRanking: () => void
   onSound: () => void
@@ -33,7 +33,6 @@ function readHud(game: GameState) {
     rivals: game.enemies.filter(
       (enemy) => enemy.fallTimer === 0 && game.distance - enemy.distance < 22,
     ).length,
-    slowing: game.slowTimer > 0.35,
     showHint: game.elapsed < 5.5,
   }
 }
@@ -137,14 +136,13 @@ export default function GameScreen({
     function update(now: number) {
       if (phaseRef.current !== 'playing') return
       const previousHits = game.eliminated
-      const previousSlow = game.slowTimer
       const previousFalls = game.falls
       stepGame(game, input.current, (now - last) / 1000)
       last = now
-      if (game.caught) {
+      if (game.endReason) {
         changePhase('finished')
-        play('finish')
-        callbacks.current.onFinish(Math.floor(game.distance), game.eliminated)
+        play(game.endReason === 'obstacle' ? 'impact' : 'finish')
+        callbacks.current.onFinish(Math.floor(game.distance), game.eliminated, game.endReason)
         return
       }
       if (game.falls > previousFalls) {
@@ -152,7 +150,6 @@ export default function GameScreen({
         setDodgeNotice(true)
         play('escape')
       } else if (game.eliminated > previousHits) play('escape')
-      else if (game.slowTimer > previousSlow) play('impact')
       if (now - lastHud >= 90) {
         setHud(readHud(game))
         setDodgeNotice(game.elapsed < dodgeUntil)
@@ -229,11 +226,6 @@ export default function GameScreen({
         <div className="ski-feedback">
           {dodgeNotice ? (
             <div className="ski-alert ski-dodged">追手が転倒</div>
-          ) : hud.slowing ? (
-            <div className="ski-alert">
-              <TriangleAlert size={15} />
-              障害物に当たって減速！
-            </div>
           ) : (
             hud.showHint && (
               <div className="ski-control-hint">

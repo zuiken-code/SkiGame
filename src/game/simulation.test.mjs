@@ -16,19 +16,20 @@ test('a seeded run has the same physics at different display refresh rates', () 
   assert.deepEqual(fast.obstacles, slow.obstacles)
 })
 
-test('a player impact slows once and riding through the obstacle can continue', () => {
-  const state = createGame(12)
-  const rock = state.obstacles[0]
-  state.x = rock.x
-  state.distance = rock.distance - state.speed * tick
-  const speedBefore = state.speed
-  stepGame(state, neutral, tick)
-  const hitSpeed = state.speed
-  assert.ok(hitSpeed <= speedBefore * 0.52)
-  assert.ok(state.slowTimer > 0)
-  assert.equal(state.caught, false)
-  stepGame(state, neutral, tick)
-  assert.ok(state.speed > hitSpeed)
+test('hitting a rock or tree ends the run on the collision tick and freezes the distance', () => {
+  for (const kind of ['rock', 'pine']) {
+    const state = createGame(12)
+    const obstacle = state.obstacles.find((item) => item.kind === kind)
+    state.x = obstacle.x
+    state.distance = obstacle.distance - state.speed * tick
+    stepGame(state, neutral, tick)
+    assert.equal(state.endReason, 'obstacle')
+    const finish = state.distance
+    const elapsed = state.elapsed
+    stepGame(state, { steer: 1, brake: 1 }, 0.2)
+    assert.equal(state.distance, finish)
+    assert.equal(state.elapsed, elapsed)
+  }
 })
 
 test('enemies disappear on obstacles and new pursuers arrive', () => {
@@ -63,8 +64,8 @@ test('glove contact from behind or from either side ends the run before body con
     assert.ok(rival.reachTimer > 0)
     if (x) assert.equal(rival.reachX, -Math.sign(x))
     else assert.equal(rival.reachDownhill, 1)
-    for (let frame = 0; frame < 65 && !state.caught; frame++) stepGame(state, neutral, tick)
-    assert.equal(state.caught, true)
+    for (let frame = 0; frame < 65 && !state.endReason; frame++) stepGame(state, neutral, tick)
+    assert.equal(state.endReason, 'caught')
     assert.ok(Math.hypot(state.x - rival.x, state.distance - rival.distance) > 0.8)
     const finish = state.distance
     stepGame(state, { steer: 1, brake: 1 }, 0.2)
@@ -83,7 +84,7 @@ test('passing close to a rival outside the reach of its gloves is safe', () => {
   rival.reachDownhill = 0
   stepGame(game, neutral, tick)
   assert.ok(Math.hypot(game.x - rival.x, game.distance - rival.distance) < 0.7)
-  assert.equal(game.caught, false)
+  assert.equal(game.endReason, null)
 })
 
 test('a reaching rival can be tripped from behind and stops until it recovers', () => {
@@ -93,10 +94,10 @@ test('a reaching rival can be tripped from behind and stops until it recovers', 
   rival.distance = -3.5
   stepGame(game, neutral, tick)
   assert.ok(rival.reachTimer > 0)
-  while (game.falls === 0 && !game.caught && game.elapsed < 0.24) {
+  while (game.falls === 0 && !game.endReason && game.elapsed < 0.24) {
     stepGame(game, { steer: 1, brake: 0 }, tick)
   }
-  assert.equal(game.caught, false)
+  assert.equal(game.endReason, null)
   assert.equal(game.falls, 1)
   assert.ok(game.distance - rival.distance > 2.5)
   assert.equal(rival.fallTimer, RIVAL_FALL_TIME)
@@ -119,10 +120,10 @@ test('a sharp turn away trips a rival reaching from the side', () => {
   rival.distance = 0
   stepGame(game, neutral, tick)
   assert.equal(rival.reachX, -1)
-  for (let frame = 0; frame < 16 && !game.falls && !game.caught; frame++) {
+  for (let frame = 0; frame < 16 && !game.falls && !game.endReason; frame++) {
     stepGame(game, { steer: -1, brake: 0 }, tick)
   }
-  assert.equal(game.caught, false)
+  assert.equal(game.endReason, null)
   assert.equal(game.falls, 1)
 })
 
@@ -135,10 +136,10 @@ test('a missed reach ends in a fall even without a sharp turn', () => {
   stepGame(game, neutral, tick)
   assert.ok(rival.reachTimer > 0)
   // Gently change lanes while the rival is committed straight downhill.
-  for (let frame = 0; frame < 75 && !game.falls && !game.caught; frame++) {
+  for (let frame = 0; frame < 75 && !game.falls && !game.endReason; frame++) {
     stepGame(game, { steer: 0.48, brake: 0 }, tick)
   }
-  assert.equal(game.caught, false)
+  assert.equal(game.endReason, null)
   assert.equal(game.falls, 1)
   assert.equal(rival.reachTimer, 0)
   assert.equal(rival.fallTimer, RIVAL_FALL_TIME)
@@ -194,7 +195,7 @@ test('repeated reactions to reaching rivals can trip several in a single run', (
   const game = createGame(5)
   let turn = 0
   let framesLeft = 0
-  while (!game.caught && game.distance < 600) {
+  while (!game.endReason && game.distance < 600) {
     const center = courseCenter(game.distance)
     const reaching = game.enemies.find((rival) => rival.reachTimer > 0)
     if (framesLeft === 0 && reaching && !game.strongSteer) {
@@ -218,14 +219,14 @@ test('repeated reactions to reaching rivals can trip several in a single run', (
 
 test('aiming at obstacles and turning away late can eliminate successive pursuers', () => {
   const state = createGame(11)
-  while (!state.caught && state.distance < 600) {
+  while (!state.endReason && state.distance < 600) {
     const obstacle = state.obstacles.find(
       (item) => item.distance > state.distance - 1.4 && item.distance < state.distance + 21,
     )
     let offset = 0
     if (obstacle) {
       offset = obstacle.x - courseCenter(obstacle.distance)
-      if (obstacle.distance - state.distance < 8) offset += offset < 0 ? 2.1 : -2.1
+      if (obstacle.distance - state.distance < 10) offset += offset < 0 ? 2.1 : -2.1
     }
     const target = courseCenter(state.distance) + offset
     stepGame(state, { steer: (target - state.x) * 0.72, brake: 0 }, tick)

@@ -6,7 +6,6 @@ export interface Obstacle {
   distance: number
   radius: number
   kind: 'rock' | 'pine'
-  playerHit: boolean
 }
 
 /** World X at a given downhill distance. Both rendering and physics sample this curve. */
@@ -36,7 +35,6 @@ function addObstacle(course: Course, distance: number, offset: number, kind: Obs
     x: courseCenter(distance) + offset,
     radius: kind === 'rock' ? 0.82 + course.random() * 0.25 : 0.72 + course.random() * 0.1,
     kind,
-    playerHit: false,
   })
 }
 
