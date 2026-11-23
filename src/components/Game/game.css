@@ -1,0 +1,291 @@
+.game-screen {
+  --ski-dark: #101a23;
+  --ski-ice: #f2f9fa;
+  --ski-orange: #ff6935;
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  background: #172633;
+  color: var(--ski-ice);
+  font-family: Arial, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.game-world,
+.steering-surface,
+.ski-hud,
+.ski-cover {
+  position: absolute;
+  inset: 0;
+}
+
+.game-world {
+  z-index: 0;
+}
+.game-world canvas {
+  display: block;
+}
+.steering-surface {
+  z-index: 1;
+  overflow: hidden;
+  touch-action: none;
+}
+.steering-stick {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 98px;
+  height: 98px;
+  border: 2px solid rgba(244, 250, 251, 0.83);
+  border-radius: 50%;
+  background: rgba(16, 26, 35, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(16, 26, 35, 0.25),
+    0 2px 12px rgba(16, 26, 35, 0.15);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.steering-knob {
+  width: 34px;
+  height: 34px;
+  background: var(--ski-orange);
+  border: 2px solid var(--ski-ice);
+  border-radius: 50%;
+  box-shadow: 0 2px 7px #101a2370;
+}
+
+.ski-hud {
+  z-index: 2;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  gap: 0.5rem;
+  padding: max(0.95rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0
+    max(1rem, env(safe-area-inset-left));
+}
+.ski-hud-distance,
+.ski-hud-instruments,
+.ski-pause-button {
+  background: rgba(14, 25, 35, 0.92);
+  color: var(--ski-ice);
+  box-shadow: 0 2px 10px #14202e26;
+}
+.ski-hud-distance {
+  min-width: 6.25rem;
+  padding: 0.6rem 0.9rem 0.58rem;
+  border-radius: 0.32rem;
+  border-left: 3px solid var(--ski-orange);
+}
+.ski-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+  color: #d2dce1;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.095em;
+}
+.ski-metric-label i {
+  width: 0.32rem;
+  height: 0.32rem;
+  background: var(--ski-orange);
+  border-radius: 50%;
+}
+.ski-distance-number {
+  display: flex;
+  gap: 0.28rem;
+  align-items: baseline;
+  margin-top: 0.08rem;
+  font:
+    italic 800 clamp(2rem, 7vw, 2.8rem)/1 'Barlow Condensed',
+    Arial,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.ski-distance-number small {
+  font-size: 1.03rem;
+  color: #bfccd2;
+}
+.ski-hud-instruments {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  width: max-content;
+  border-radius: 0.32rem;
+  padding: 0 0.7rem;
+}
+.ski-hud-instruments span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+.ski-hud-instruments span + span {
+  border-left: 1px solid #52606a;
+  padding-left: 0.65rem;
+}
+.ski-hud-instruments svg {
+  align-self: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #c2d2d7;
+}
+.ski-hud-instruments b {
+  font:
+    700 1.3rem/1 'Barlow Condensed',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.ski-hud-instruments small {
+  color: #c2d2d7;
+  font-size: 0.68rem;
+}
+.game-screen button {
+  cursor: pointer;
+  font-family: inherit;
+}
+.game-screen button:focus-visible {
+  outline: 3px solid #86dee8;
+  outline-offset: 3px;
+}
+.ski-pause-button {
+  pointer-events: auto;
+  border: 1px solid #edf8fc52;
+  border-radius: 0.32rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.ski-feedback {
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.ski-alert,
+.ski-control-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.28rem;
+  background: rgba(16, 26, 35, 0.85);
+  box-shadow: 0 2px 10px rgba(18, 29, 39, 0.15);
+}
+.ski-alert {
+  color: #ffcaab;
+  border-bottom: 2px solid var(--ski-orange);
+}
+.ski-key-hint {
+  display: none;
+}
+@media (pointer: fine) {
+  .ski-key-hint {
+    display: inline;
+  }
+  .ski-touch-hint {
+    display: none;
+  }
+}
+.ski-cover {
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: rgba(12, 22, 31, 0.64);
+  padding: 1.25rem;
+}
+.ski-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.ski-loading svg {
+  color: var(--ski-orange);
+}
+.ski-loading-back {
+  position: absolute;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  background: none;
+  border: 0;
+  color: var(--ski-ice);
+  padding: 0.75rem;
+  text-decoration: underline;
+}
+.ski-dialog {
+  box-sizing: border-box;
+  width: min(100%, 21rem);
+  padding: 1.6rem;
+  border: 1px solid #4d606b;
+  border-radius: 0.5rem;
+  background: var(--ski-dark);
+  box-shadow: 0 1rem 4rem rgba(8, 17, 26, 0.23);
+}
+.ski-dialog-mark {
+  color: var(--ski-orange);
+  margin-bottom: 0.7rem;
+}
+.ski-dialog h2 {
+  color: var(--ski-ice);
+  font-family: inherit;
+  font-size: 1.4rem;
+  line-height: 1.4;
+  font-weight: 800;
+  margin: 0;
+}
+.ski-dialog p {
+  color: #bdcbd2;
+  font-size: 0.89rem;
+  line-height: 1.7;
+  margin: 0.5rem 0 1.3rem;
+}
+.ski-primary,
+.ski-secondary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.9rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.ski-primary {
+  color: #171c20;
+  background: var(--ski-orange);
+}
+.ski-secondary {
+  margin-top: 0.5rem;
+  background: transparent;
+  color: var(--ski-ice);
+  border-color: #4d606b;
+}
+@media (max-height: 440px) {
+  .ski-dialog {
+    padding: 1rem 1.3rem;
+  }
+  .ski-hud {
+    padding-top: max(0.55rem, env(safe-area-inset-top));
+  }
+  .ski-feedback {
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ski-game",
+  "compatibility_date": "2025-10-01",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ski-game",
+      // Local emulator ID. Replace with the Cloudflare D1 UUID before publishing.
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}

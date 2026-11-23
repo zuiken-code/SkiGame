@@ -1,0 +1,35 @@
+{
+  "name": "powder-chase",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.functions.json",
+    "test": "node --test src/game/simulation.test.mjs tests/leaderboard.test.mjs",
+    "build": "npm run typecheck && vite build",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "api": "wrangler pages dev dist --ip 127.0.0.1 --port 8789",
+    "play": "npm run db:local && npm run build && wrangler pages dev dist --ip 0.0.0.0 --port 8788"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.2.0",
+    "@fontsource/space-mono": "^5.2.0",
+    "@react-three/fiber": "^9.4.0",
+    "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.181.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.181.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.2",
+    "wrangler": "^4.54.0"
+  }
+}
