@@ -110,33 +110,63 @@ npm.cmd run build
 
 **実機での確認例**　2台で別々の名前と距離を登録し、お互いの記録と自分の順位を確認します。同じ端末で短い距離を再登録し、自己ベストが保持されることも確認できます。画面の端からドラッグ、指を押したまま別の指でタッチ、タブ切り替えからの再開は、実際の端末で確認したい操作です。
 
-## 実機テスト・調整が済んだ後の Cloudflare 公開
+## Cloudflare Pages に GitHub 連携で公開
 
-GitHub への push と本番公開は別操作です。以下は **本番へ公開する段階** の手順です。リポジトリのルートから実行します。
+スマホ実機でのテストと調整が済んだら、Cloudflare Pages を GitHub の `zuiken-code/SkiGame` に接続します。初回公開後は、`main` への push やマージで Pages が自動でビルド・公開します。[Cloudflare Pages の Git 連携](https://developers.cloudflare.com/pages/get-started/git-integration/)
 
-1. 初回のみ、Cloudflare にログインして D1 を作成します。
+### 1. 本番のランキング用 D1 を用意する
 
-   ```powershell
-   npx.cmd wrangler login
-   npx.cmd wrangler d1 create ski-game
-   ```
+リポジトリのルートで、Pages と同じ Cloudflare アカウントにログインして D1 を作成します。
 
-2. 出力された本番 D1 の UUID を `wrangler.jsonc` の `d1_databases[0].database_id` に設定します。初期値はローカルテスト用です。バインディング名は `DB` を使います。
-3. 本番 D1 にスキーマを適用し、初回のみ Direct Upload 用の Pages プロジェクトを作成します。別名を選んだ場合は設定の `name` と公開コマンドも合わせてください。
+```powershell
+npm.cmd ci
+npx.cmd wrangler login
+npx.cmd wrangler d1 create ski-game --no-update-config
+```
 
-   ```powershell
-   npx.cmd wrangler d1 migrations apply DB --remote
-   npx.cmd wrangler pages project create ski-game --production-branch main
-   ```
+`wrangler.jsonc` に下記の `env` を追加し、`<本番D1のUUID>` を作成時に表示された `database_id` に置き換えます。トップレベルの `d1_databases` はローカルテスト用として残します。Pages プロジェクトに別名を使う場合は、トップレベルの `name` を実際のプロジェクト名に合わせます。[Pages の環境別設定](https://developers.cloudflare.com/pages/functions/wrangler-configuration/#environment-specific-overrides)
 
-4. テストしたコミットから再ビルドし、Pages に配信します。Wrangler がルートの `functions/` と `dist/` をまとめます。
+```jsonc
+"env": {
+  "production": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "ski-game",
+        "database_id": "<本番D1のUUID>",
+        "migrations_dir": "./migrations"
+      }
+    ]
+  }
+}
+```
 
-   ```powershell
-   npm.cmd test
-   npm.cmd run build
-   npx.cmd wrangler pages deploy dist --project-name ski-game --branch main
-   ```
+本番 D1 にスキーマを適用してから、設定をコミットして `main` に push します。SQLite 形式のローカルテスト記録は PC の `.wrangler/state/` にあり、本番 D1 は空のランキングで始まります。[D1 マイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
+
+```powershell
+npx.cmd wrangler d1 migrations apply ski-game --remote --env production
+```
+
+### 2. Cloudflare Pages と GitHub を接続する
+
+Cloudflare ダッシュボードの **Workers & Pages → Create application → Pages → Connect to Git** から GitHub を選びます。アクセスの許可範囲では `zuiken-code/SkiGame` を選び、同じリポジトリを Pages に取り込みます。
+
+| 設定 | 入力値 |
+| --- | --- |
+| Project name | `ski-game`（`wrangler.jsonc` の `name` と同じ） |
+| Production branch | `main` |
+| Framework preset | `None` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Root directory | 空欄（リポジトリのルート） |
+| Environment variable | `NODE_VERSION` に `24.22.1` |
+
+**Save and Deploy** で初回ビルドを開始します。Pages は `dist/` を配信し、リポジトリのルートにある `functions/` を Pages Functions として組み込みます。本番の D1 バインディング `DB` は `wrangler.jsonc` の `env.production` から読み込みます。成功したら **Deployments** に表示される `*.pages.dev` を開き、ランキング表示と滑走後の登録を確認します。[Pages Functions の構成](https://developers.cloudflare.com/pages/functions/get-started/)・[Pages の Node.js バージョン設定](https://developers.cloudflare.com/pages/configuration/build-image/)
+
+### 3. 更新を公開する
+
+ローカルで `npm.cmd test` と `npm.cmd run build` を通し、スマホで動作を確認してから `main` に反映します。新しい SQL マイグレーションを含む更新では、`main` への反映前に上記の本番 D1 マイグレーションコマンドを実行します。公開結果は Pages の **Deployments** で確認できます。
+
+この手順では `main` だけを自動公開する想定です。プロジェクトの **Settings → Builds & deployments** で **Preview deployments** を `None` に設定できます。プレビューでもランキングを試す場合は、別の D1 を `env.preview.d1_databases` の `DB` に設定し、`--env preview` でその D1 にマイグレーションを適用してから対象ブランチの公開を有効にします。[Pages のブランチ別公開設定](https://developers.cloudflare.com/pages/configuration/branch-build-controls/)
 
 無料プランでは、Functions と Workers 合計で1日10万リクエスト、D1 は1日500万行の読み取り・10万行の書き込みが目安です。ゲーム中の移動はすべて端末上で計算し、毎フレームの通信は行いません。静的アセットは Functions の対象外です。[Pages の料金](https://developers.cloudflare.com/pages/functions/pricing/)・[D1 の料金](https://developers.cloudflare.com/d1/platform/pricing/)
-
-公開コマンドとマイグレーションの詳細は公式ガイドで確認できます。[Pages Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)・[D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)
