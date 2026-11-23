@@ -87,7 +87,7 @@ npm.cmd run dev
 | `src/styles/base.css`、`ranking.css` | 配色、共通のダイアログとボタン、ランキングのレイアウト |
 | `worker/index.ts` | Worker の Fetch ハンドラー、API ルーティング、リクエスト検証、D1 アクセス |
 | `migrations/0001_leaderboard.sql` | 滑走と自己ベストのテーブル、順位用インデックス、自己ベスト更新のトリガー |
-| `public/ridge.svg` | ファビコン |
+| `public/icons/`、`public/manifest.webmanifest` | ブラウザーのタブとホーム画面で使うゲームアイコン |
 | `package.json`、`package-lock.json` | 開発コマンド、依存パッケージと再現可能なバージョン |
 | `vite.config.ts` | Vite の React プラグイン、LAN 待ち受け、API プロキシ、配布用ライセンス出力 |
 | `tsconfig.json`、`tsconfig.worker.json` | ブラウザー用と Cloudflare ランタイム用の型チェック |
