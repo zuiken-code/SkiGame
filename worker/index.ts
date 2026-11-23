@@ -128,7 +128,11 @@ async function finishRun(request: Request, db: D1Database, playerId: string) {
   return leaderboard(db, playerId)
 }
 
-export const onRequest: PagesFunction<{ DB: D1Database }> = async ({ request, env }) => {
+interface Env {
+  DB: D1Database
+}
+
+async function fetchRequest(request: Request, env: Env): Promise<Response> {
   const endpoint = new URL(request.url).pathname.replace(/\/$/, '')
   const { method } = request
   if (endpoint !== '/api/runs' && endpoint !== '/api/leaderboard') {
@@ -157,3 +161,5 @@ export const onRequest: PagesFunction<{ DB: D1Database }> = async ({ request, en
     return error('ランキングに接続できません。少し待ってから再試行してください。', 503)
   }
 }
+
+export default { fetch: fetchRequest } satisfies ExportedHandler<Env>

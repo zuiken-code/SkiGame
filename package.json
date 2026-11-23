@@ -8,12 +8,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.functions.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json",
     "test": "node --test src/game/simulation.test.mjs tests/leaderboard.test.mjs",
     "build": "npm run typecheck && vite build",
     "db:local": "wrangler d1 migrations apply DB --local",
-    "api": "wrangler pages dev dist --ip 127.0.0.1 --port 8789",
-    "play": "npm run db:local && npm run build && wrangler pages dev dist --ip 0.0.0.0 --port 8788"
+    "api": "wrangler dev --ip 127.0.0.1 --port 8789",
+    "play": "npm run db:local && npm run build && wrangler dev --ip 0.0.0.0 --port 8788"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.2.0",

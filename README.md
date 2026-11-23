@@ -37,7 +37,7 @@ npm.cmd run play
 ホットリロードを使う場合は、同じリポジトリでターミナルを2つ開きます。最初のビルドで `dist/` を用意します。
 
 ```powershell
-# ターミナル1。Pages Functions とローカル D1 を起動
+# ターミナル1。Worker とローカル D1 を起動
 npm.cmd run db:local
 npm.cmd run build
 npm.cmd run api
@@ -85,14 +85,13 @@ npm.cmd run dev
 | `src/services/profile.ts` | ローカル統計、表示名、サウンド設定の保存と読み込み |
 | `src/services/leaderboard.ts` | 匿名トークンの生成・保持、API 呼び出し、タイムアウト、応答の型確認 |
 | `src/styles/base.css`、`ranking.css` | 配色、共通のダイアログとボタン、ランキングのレイアウト |
-| `functions/api/[[endpoint]].ts` | Pages Functions の HTTP ルート、リクエスト検証、D1 アクセス |
+| `worker/index.ts` | Worker の Fetch ハンドラー、API ルーティング、リクエスト検証、D1 アクセス |
 | `migrations/0001_leaderboard.sql` | 滑走と自己ベストのテーブル、順位用インデックス、自己ベスト更新のトリガー |
 | `public/ridge.svg` | ファビコン |
-| `public/_routes.json` | Functions を呼ぶ経路を `/api/*` に限定 |
 | `package.json`、`package-lock.json` | 開発コマンド、依存パッケージと再現可能なバージョン |
 | `vite.config.ts` | Vite の React プラグイン、LAN 待ち受け、API プロキシ、配布用ライセンス出力 |
-| `tsconfig.json`、`tsconfig.functions.json` | ブラウザー用と Cloudflare ランタイム用の型チェック |
-| `wrangler.jsonc` | Pages の配信先ディレクトリ、D1 のバインディング `DB` とマイグレーション先 |
+| `tsconfig.json`、`tsconfig.worker.json` | ブラウザー用と Cloudflare ランタイム用の型チェック |
+| `wrangler.jsonc` | Worker のエントリーポイント、静的アセット、API 経路、D1 バインディング `DB` |
 | `.gitignore` | ビルド出力、依存パッケージ、ローカル D1、環境変数ファイルを Git の管理対象から除外 |
 
 ## レビューと動作確認
@@ -110,63 +109,39 @@ npm.cmd run build
 
 **実機での確認例**　2台で別々の名前と距離を登録し、お互いの記録と自分の順位を確認します。同じ端末で短い距離を再登録し、自己ベストが保持されることも確認できます。画面の端からドラッグ、指を押したまま別の指でタッチ、タブ切り替えからの再開は、実際の端末で確認したい操作です。
 
-## Cloudflare Pages に GitHub 連携で公開
+## Cloudflare Workers に GitHub 連携で公開
 
-スマホ実機でのテストと調整が済んだら、Cloudflare Pages を GitHub の `zuiken-code/SkiGame` に接続します。初回公開後は、`main` への push やマージで Pages が自動でビルド・公開します。[Cloudflare Pages の Git 連携](https://developers.cloudflare.com/pages/get-started/git-integration/)
+GitHub の `zuiken-code/SkiGame` を Cloudflare Worker `skigame` に接続します。`main` への push やマージで Workers Builds がビルドとデプロイを実行します。ゲーム画面は `dist/` の静的アセットとして配信され、`/api/*` は同じ Worker が処理します。[Workers Builds の設定](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)・[Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/binding/)
 
-### 1. 本番のランキング用 D1 を用意する
+### 1. 本番 D1 の準備
 
-リポジトリのルートで、Pages と同じ Cloudflare アカウントにログインして D1 を作成します。
+このプロジェクトでは、`wrangler.jsonc` のバインディング `DB` に本番 D1 `ski-game` を設定します。初回と、新しい SQL マイグレーションを含む更新の公開前に、リポジトリのルートで以下を実行します。
 
 ```powershell
 npm.cmd ci
 npx.cmd wrangler login
-npx.cmd wrangler d1 create ski-game --no-update-config
+npx.cmd wrangler d1 migrations apply ski-game --remote
 ```
 
-`wrangler.jsonc` に下記の `env` を追加し、`<本番D1のUUID>` を作成時に表示された `database_id` に置き換えます。トップレベルの `d1_databases` はローカルテスト用として残します。Pages プロジェクトに別名を使う場合は、トップレベルの `name` を実際のプロジェクト名に合わせます。[Pages の環境別設定](https://developers.cloudflare.com/pages/functions/wrangler-configuration/#environment-specific-overrides)
+既存のスキーマには、未適用のマイグレーションだけが反映されます。ローカルのマイグレーションと記録は `.wrangler/state/` に保存されます。[D1 マイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
 
-```jsonc
-"env": {
-  "production": {
-    "d1_databases": [
-      {
-        "binding": "DB",
-        "database_name": "ski-game",
-        "database_id": "<本番D1のUUID>",
-        "migrations_dir": "./migrations"
-      }
-    ]
-  }
-}
-```
+### 2. Workers Builds の設定
 
-本番 D1 にスキーマを適用してから、設定をコミットして `main` に push します。SQLite 形式のローカルテスト記録は PC の `.wrangler/state/` にあり、本番 D1 は空のランキングで始まります。[D1 マイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
-
-```powershell
-npx.cmd wrangler d1 migrations apply ski-game --remote --env production
-```
-
-### 2. Cloudflare Pages と GitHub を接続する
-
-Cloudflare ダッシュボードの **Workers & Pages → Create application → Pages → Connect to Git** から GitHub を選びます。アクセスの許可範囲では `zuiken-code/SkiGame` を選び、同じリポジトリを Pages に取り込みます。
+Cloudflare ダッシュボードの **Workers & Pages → skigame → Settings → Build** で、GitHub リポジトリを接続するか既存の接続を開きます。次の値で保存します。
 
 | 設定 | 入力値 |
 | --- | --- |
-| Project name | `ski-game`（`wrangler.jsonc` の `name` と同じ） |
+| Git repository | `zuiken-code/SkiGame` |
 | Production branch | `main` |
-| Framework preset | `None` |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
 | Root directory | 空欄（リポジトリのルート） |
-| Environment variable | `NODE_VERSION` に `24.22.1` |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Build variable | `NODE_VERSION` に `24.22.1` |
 
-**Save and Deploy** で初回ビルドを開始します。Pages は `dist/` を配信し、リポジトリのルートにある `functions/` を Pages Functions として組み込みます。本番の D1 バインディング `DB` は `wrangler.jsonc` の `env.production` から読み込みます。成功したら **Deployments** に表示される `*.pages.dev` を開き、ランキング表示と滑走後の登録を確認します。[Pages Functions の構成](https://developers.cloudflare.com/pages/functions/get-started/)・[Pages の Node.js バージョン設定](https://developers.cloudflare.com/pages/configuration/build-image/)
+配信元は `wrangler.jsonc` の `assets.directory` で指定しています。Workers Builds でデプロイが成功したら、Cloudflare が表示する `*.workers.dev` を開き、ゲームとランキングを確認します。`/api/leaderboard` は `entries` と `me` を含む JSON を返します。
 
 ### 3. 更新を公開する
 
-ローカルで `npm.cmd test` と `npm.cmd run build` を通し、スマホで動作を確認してから `main` に反映します。新しい SQL マイグレーションを含む更新では、`main` への反映前に上記の本番 D1 マイグレーションコマンドを実行します。公開結果は Pages の **Deployments** で確認できます。
+ローカルで `npm.cmd test` と `npm.cmd run build` を通し、スマホで動作を確認してから `main` に反映します。ビルド・デプロイの結果は Worker の **Deployments** で確認できます。
 
-この手順では `main` だけを自動公開する想定です。プロジェクトの **Settings → Builds & deployments** で **Preview deployments** を `None` に設定できます。プレビューでもランキングを試す場合は、別の D1 を `env.preview.d1_databases` の `DB` に設定し、`--env preview` でその D1 にマイグレーションを適用してから対象ブランチの公開を有効にします。[Pages のブランチ別公開設定](https://developers.cloudflare.com/pages/configuration/branch-build-controls/)
-
-無料プランでは、Functions と Workers 合計で1日10万リクエスト、D1 は1日500万行の読み取り・10万行の書き込みが目安です。ゲーム中の移動はすべて端末上で計算し、毎フレームの通信は行いません。静的アセットは Functions の対象外です。[Pages の料金](https://developers.cloudflare.com/pages/functions/pricing/)・[D1 の料金](https://developers.cloudflare.com/d1/platform/pricing/)
+Workers 無料プランと D1 の上限は公式ページを参照してください。ゲーム中の移動は端末で計算します。静的アセットへのリクエストは無料で、ランキング API の処理は Workers の使用量に含まれます。[Workers の料金](https://developers.cloudflare.com/workers/platform/pricing/)・[D1 の料金](https://developers.cloudflare.com/d1/platform/pricing/)

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
-import { onRequest } from '../functions/api/[[endpoint]].ts'
+import worker from '../worker/index.ts'
 
 function fixture(t) {
   const sqlite = new DatabaseSync(':memory:')
@@ -36,7 +36,7 @@ function fixture(t) {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     })
-    return onRequest({ request, env: { DB } })
+    return worker.fetch(request, { DB })
   }
   return {
     async start(player) {
