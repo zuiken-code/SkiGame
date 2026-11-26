@@ -24,7 +24,7 @@ export function StartOverlay({
   sound,
   onSound,
 }: StartOverlayProps) {
-  const alternative = editionNames[edition === 'new' ? 'classic' : 'new']
+  const switchLabel = edition === 'new' ? '旧版に切り替え' : '新版に戻す'
   return (
     <div className="ski-start">
       <button
@@ -48,14 +48,9 @@ export function StartOverlay({
           <Trophy size={16} />
           ランキング
         </button>
-        <button
-          className="ski-edition-switch"
-          type="button"
-          onClick={onEditionChange}
-          aria-label={`${alternative}に切り替え`}
-        >
+        <button className="ski-edition-switch" type="button" onClick={onEditionChange}>
           <ArrowLeftRight size={15} aria-hidden="true" />
-          {alternative}
+          {switchLabel}
         </button>
       </nav>
       <button

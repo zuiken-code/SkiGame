@@ -113,7 +113,10 @@
 .ski-start-nav .ski-edition-switch:not(:hover) {
   background: #e6effb;
 }
-@media (max-width: 360px) {
+@media (max-width: 400px) {
+  .ski-start-nav button {
+    padding-inline: 6px;
+  }
   .ski-start-nav button svg {
     display: none;
   }
