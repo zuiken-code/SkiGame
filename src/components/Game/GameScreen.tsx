@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { CornerDownLeft, Gauge, Pause, Play, TriangleAlert, UsersRound } from 'lucide-react'
-import { createGame, stepGame } from '../../game/simulation'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react'
+import {
+  CornerDownLeft,
+  Gauge,
+  Pause,
+  Play,
+  Shield,
+  TriangleAlert,
+  UsersRound,
+  Zap,
+} from 'lucide-react'
+import { createGame, isInvulnerable, stepGame } from '../../game/simulation'
 import type { GameState, RunEndReason } from '../../game/simulation'
+import type { GameEdition } from '../../game/edition'
 import { SkiScene } from '../../scene/SkiScene'
 import SteeringSurface from './SteeringSurface'
 import { StartOverlay } from './StartOverlay'
@@ -17,6 +27,8 @@ export interface RunControls {
 
 interface GameScreenProps {
   ref: Ref<RunControls>
+  edition: GameEdition
+  onEditionChange: () => void
   onStart: () => void
   onFinish: (distance: number, eliminated: number, reason: RunEndReason) => void
   onGuide: () => void
@@ -34,11 +46,17 @@ function readHud(game: GameState) {
       (enemy) => enemy.fallTimer === 0 && game.distance - enemy.distance < 22,
     ).length,
     showHint: game.elapsed < 5.5,
+    boostRemaining: game.boostRemaining,
+    glideRemaining: game.glideRemaining,
+    invulnerable: isInvulnerable(game),
+    landingProtectionRemaining: game.landingProtectionRemaining,
   }
 }
 
 export default function GameScreen({
   ref,
+  edition,
+  onEditionChange,
   onFinish,
   onStart,
   onGuide,
@@ -47,7 +65,7 @@ export default function GameScreen({
   soundEnabled,
   best,
 }: GameScreenProps) {
-  const [simulation] = useState(() => ({ current: createGame() }))
+  const simulation = useMemo(() => ({ current: createGame(undefined, edition) }), [edition])
   const [phase, setPhase] = useState<Phase>('loading')
   const [confirmExit, setConfirmExit] = useState(false)
   const [hud, setHud] = useState(() => readHud(simulation.current))
@@ -72,19 +90,19 @@ export default function GameScreen({
 
   const start = useCallback(() => {
     if (phaseRef.current !== 'ready' && phaseRef.current !== 'finished') return
-    simulation.current = createGame()
+    simulation.current = createGame(undefined, edition)
     input.current = { steer: 0, brake: 0 }
     setHud(readHud(simulation.current))
     setDodgeNotice(false)
     wake()
     callbacks.current.onStart()
     changePhase(document.hidden ? 'paused' : 'playing')
-  }, [changePhase, simulation, wake])
+  }, [changePhase, edition, simulation, wake])
 
   const reset = useCallback(() => {
-    simulation.current = createGame()
+    simulation.current = createGame(undefined, edition)
     changePhase('ready')
-  }, [changePhase, simulation])
+  }, [changePhase, edition, simulation])
 
   useImperativeHandle(ref, () => ({ start, reset }), [start, reset])
 
@@ -137,6 +155,9 @@ export default function GameScreen({
       if (phaseRef.current !== 'playing') return
       const previousHits = game.eliminated
       const previousFalls = game.falls
+      const previousBoost = game.boostRemaining
+      const wasGliding = game.glideRemaining > 0
+      const wasInvulnerable = isInvulnerable(game)
       stepGame(game, input.current, (now - last) / 1000)
       last = now
       if (game.endReason) {
@@ -150,7 +171,17 @@ export default function GameScreen({
         setDodgeNotice(true)
         play('escape')
       } else if (game.eliminated > previousHits) play('escape')
-      if (now - lastHud >= 90) {
+      const gliding = game.glideRemaining > 0
+      const startedGlide = !wasGliding && gliding
+      const collectedBoost = game.boostRemaining > previousBoost
+      if (startedGlide) play('jump')
+      else if (collectedBoost) play('boost')
+      if (
+        now - lastHud >= 90 ||
+        gliding !== wasGliding ||
+        isInvulnerable(game) !== wasInvulnerable ||
+        collectedBoost
+      ) {
         setHud(readHud(game))
         setDodgeNotice(game.elapsed < dodgeUntil)
         lastHud = now
@@ -179,6 +210,8 @@ export default function GameScreen({
       {(phase === 'ready' || phase === 'loading') && (
         <StartOverlay
           ready={phase === 'ready'}
+          edition={edition}
+          onEditionChange={onEditionChange}
           onPlay={start}
           onGuide={onGuide}
           onRanking={onRanking}
@@ -224,10 +257,34 @@ export default function GameScreen({
       )}
       {phase === 'playing' && (
         <div className="ski-feedback">
+          {(hud.invulnerable || hud.boostRemaining > 0) && (
+            <div className="ski-features" aria-label="滑走中の効果">
+              {hud.boostRemaining > 0 && (
+                <div className="ski-alert ski-boost">
+                  <Zap size={15} /> 加速中 <strong>{hud.boostRemaining.toFixed(1)} 秒</strong>
+                </div>
+              )}
+              {hud.invulnerable && (
+                <div className="ski-alert ski-protection" role="status">
+                  <Shield size={17} aria-hidden="true" />
+                  <strong>無敵</strong>
+                  {hud.glideRemaining > 0 ? (
+                    <span>滑空中</span>
+                  ) : (
+                    <span aria-hidden="true">
+                      残り {(Math.ceil(hud.landingProtectionRemaining * 10) / 10).toFixed(1)} 秒
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {dodgeNotice ? (
             <div className="ski-alert ski-dodged">追手が転倒</div>
           ) : (
-            hud.showHint && (
+            hud.showHint &&
+            hud.boostRemaining === 0 &&
+            !hud.invulnerable && (
               <div className="ski-control-hint">
                 <span className="ski-touch-hint">画面を押して左右にターン · 手前に引いて減速</span>
                 <span className="ski-key-hint">← → でターン · ↓ で減速</span>

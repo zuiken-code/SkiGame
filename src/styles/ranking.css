@@ -57,3 +57,27 @@
   margin-bottom: 6px;
   font-size: 0.95rem;
 }
+.rank-editions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #e8f3f9;
+}
+.rank-editions button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #355676;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.rank-editions button[aria-pressed='true'] {
+  color: #173253;
+  background: #fff;
+  border-color: #8baec6;
+  box-shadow: 0 1px 2px #33557026;
+}

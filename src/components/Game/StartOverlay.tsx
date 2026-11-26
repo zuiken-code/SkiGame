@@ -1,7 +1,10 @@
-import { BookOpen, Play, Trophy, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeftRight, BookOpen, Play, Trophy, Volume2, VolumeX } from 'lucide-react'
+import { editionNames, type GameEdition } from '../../game/edition'
 
 interface StartOverlayProps {
   ready: boolean
+  edition: GameEdition
+  onEditionChange: () => void
   onPlay: () => void
   onGuide: () => void
   onRanking: () => void
@@ -12,6 +15,8 @@ interface StartOverlayProps {
 
 export function StartOverlay({
   ready,
+  edition,
+  onEditionChange,
   onPlay,
   onGuide,
   onRanking,
@@ -19,6 +24,7 @@ export function StartOverlay({
   sound,
   onSound,
 }: StartOverlayProps) {
+  const alternative = editionNames[edition === 'new' ? 'classic' : 'new']
   return (
     <div className="ski-start">
       <button
@@ -42,6 +48,15 @@ export function StartOverlay({
           <Trophy size={16} />
           ランキング
         </button>
+        <button
+          className="ski-edition-switch"
+          type="button"
+          onClick={onEditionChange}
+          aria-label={`${alternative}に切り替え`}
+        >
+          <ArrowLeftRight size={15} aria-hidden="true" />
+          {alternative}
+        </button>
       </nav>
       <button
         className="ski-start-sound"
@@ -57,7 +72,7 @@ export function StartOverlay({
         </h1>
       </div>
       <div className="ski-best">
-        <Trophy size={15} /> ベスト <strong>{best.toLocaleString('ja-JP')} m</strong>
+        <Trophy size={15} /> {editionNames[edition]}のベスト <strong>{best.toLocaleString('ja-JP')} m</strong>
       </div>
     </div>
   )

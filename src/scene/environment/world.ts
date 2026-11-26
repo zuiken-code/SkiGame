@@ -3,6 +3,7 @@ import {
   COURSE_HALF_WIDTH,
   RIVAL_FALL_TIME,
   courseCenter,
+  isInvulnerable,
   type GameState,
 } from '../../game/simulation'
 import {
@@ -13,8 +14,11 @@ import {
   createRock,
 } from '../models/courseObjects'
 import { noise } from '../models/geometry'
+import { createBoostToken, createJumpRamp } from '../models/courseFeatures'
+import { createProtectionBarrier } from '../models/protectionBarrier'
 import { createReachArms, createSkier } from '../models/skier'
 import { RIVAL_SCALE, armExtension } from '../../game/reach'
+import { GLIDE_DURATION, playerHeight, smoothstep } from '../../game/features'
 import { Instances } from './instances'
 import { createPiste } from './piste'
 import { createTracks } from './tracks'
@@ -92,6 +96,8 @@ export function createWorld() {
   const forest = new Instances(pineGeometry, colorMaterial, 135)
   const coursePines = new Instances(pineGeometry, colorMaterial, 64)
   const rocks = new Instances(createRock(), colorMaterial, 64)
+  const boostTokens = new Instances(createBoostToken(), colorMaterial, 8)
+  const ramps = new Instances(createJumpRamp(), colorMaterial, 8)
   const poles = new Instances(createCoursePole(), colorMaterial, 52)
   const nets = new Instances(createNetPanel(), colorMaterial, 40)
   const forestShadows = new Instances(shadowShape, shadowMaterial, 135)
@@ -101,16 +107,20 @@ export function createWorld() {
   const grabbingTorso = new Instances(createSkier(true, 'torso'), colorMaterial, 16)
   const grabbingArms = new Instances(createReachArms(), colorMaterial, 16)
   const skier = new THREE.Mesh(createSkier(), colorMaterial)
+  const protectionBarrier = createProtectionBarrier()
   scenery.add(forest.mesh, poles.mesh, nets.mesh, forestShadows.mesh)
   group.add(
     coursePines.mesh,
     rocks.mesh,
+    boostTokens.mesh,
+    ramps.mesh,
     actionShadows.mesh,
     rivals.mesh,
     grabbingSkis.mesh,
     grabbingTorso.mesh,
     grabbingArms.mesh,
     skier,
+    protectionBarrier,
   )
   const lookAt = new THREE.Vector3()
   let anchor = Infinity
@@ -201,6 +211,18 @@ export function createWorld() {
     }
     coursePines.finish()
     rocks.finish()
+    for (const feature of state.features) {
+      const z = state.distance - feature.distance
+      if (feature.kind === 'boost') {
+        const spin = state.elapsed * 2.9 + feature.distance
+        boostTokens.place(feature.x, 0.99 + Math.sin(spin * 1.5) * 0.12, z, 1, 1, 1, spin)
+        actionShadows.place(feature.x, 0.059, z, 0.56, 1, 0.47)
+      } else {
+        ramps.place(feature.x, 0.041, z, 1, 1, 1, -feature.heading)
+      }
+    }
+    boostTokens.finish()
+    ramps.finish()
     for (const rival of state.enemies) {
       const z = state.distance - rival.distance
       if (z > 22) continue
@@ -249,9 +271,20 @@ export function createWorld() {
     grabbingSkis.finish()
     grabbingTorso.finish()
     grabbingArms.finish()
-    skier.position.set(state.x, 0.055, 0)
+    const { glideRemaining } = state
+    const rise = playerHeight(glideRemaining, state.x, state.distance, state.features)
+    const glidePitch = glideRemaining > 0
+      ? 0.19 * (1 - smoothstep((GLIDE_DURATION - glideRemaining) / 0.52)) -
+        0.16 * (1 - smoothstep(glideRemaining / 0.8)) * smoothstep(glideRemaining / 0.18)
+      : 0
+    skier.position.set(state.x, 0.055 + rise, 0)
     skier.scale.setScalar(0.78)
-    skier.rotation.set(0, -state.lean * 0.43, -state.lean * 0.28, 'YXZ')
+    skier.rotation.set(glidePitch, -state.lean * 0.43, -state.lean * 0.28, 'YXZ')
+    protectionBarrier.visible = isInvulnerable(state)
+    if (protectionBarrier.visible) {
+      protectionBarrier.position.set(state.x, 0.8 + rise, 0)
+      protectionBarrier.material.uniforms.time.value = state.elapsed
+    }
     actionShadows.place(state.x + 0.2, 0.065, 0.23, 0.4, 1, 0.78, -0.28 - state.lean * 0.21)
     actionShadows.finish()
 
@@ -269,9 +302,9 @@ export function createWorld() {
       state.x * 0.79 + center * 0.21,
       smooth,
     )
-    camera.position.y = portrait ? 11.8 : 11.4
+    camera.position.y = (portrait ? 11.8 : 11.4) + rise * 0.62
     camera.position.z = portrait ? 21 : 21.2
-    lookAt.set(THREE.MathUtils.lerp(lookAt.x, aimX, smooth), 0.8, -2.4)
+    lookAt.set(THREE.MathUtils.lerp(lookAt.x, aimX, smooth), 0.8 + rise * 0.68, -2.4)
     camera.lookAt(lookAt)
     backdrop.position.x = camera.position.x * 0.75
     previous = state

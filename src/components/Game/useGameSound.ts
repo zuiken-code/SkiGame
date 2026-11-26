@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef } from 'react'
 const tones = {
   impact: [150, 65, 0.14],
   escape: [440, 740, 0.14],
+  boost: [460, 990, 0.23],
+  jump: [290, 600, 0.16],
   finish: [280, 80, 0.32],
 } as const
 

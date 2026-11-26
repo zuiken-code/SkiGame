@@ -110,6 +110,14 @@
 .ski-start-sound:hover {
   background: #fff3c0;
 }
+.ski-start-nav .ski-edition-switch:not(:hover) {
+  background: #e6effb;
+}
+@media (max-width: 360px) {
+  .ski-start-nav button svg {
+    display: none;
+  }
+}
 .ski-title,
 .ski-best {
   pointer-events: none;
@@ -331,6 +339,29 @@
   color: #173253;
   background: #ffdc5a;
   border-color: #efab32;
+}
+.ski-features {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.ski-features + .ski-alert {
+  margin-top: 0.35rem;
+}
+.ski-boost {
+  color: #47300b;
+  background: #ffdc5a;
+  border-color: #dc950d;
+  font-variant-numeric: tabular-nums;
+}
+.ski-protection {
+  color: #fff;
+  background: #5434a5;
+  border-color: #352071;
+  font-variant-numeric: tabular-nums;
+}
+.ski-protection strong {
+  font-size: 0.95rem;
 }
 .ski-key-hint {
   display: none;

@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json",
     "test": "node --test src/game/simulation.test.mjs tests/leaderboard.test.mjs",
     "build": "npm run typecheck && vite build",
-    "db:local": "wrangler d1 migrations apply DB --local",
+    "db:local": "wrangler d1 migrations apply DB --local && wrangler d1 migrations apply DB_NEW --local",
     "api": "wrangler dev --ip 127.0.0.1 --port 8789",
     "play": "npm run db:local && npm run build && wrangler dev --ip 0.0.0.0 --port 8788"
   },

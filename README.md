@@ -22,6 +22,8 @@ npm.cmd run play
 
 ### 操作
 
+起動時は新版です。スタート画面左上の「旧版」で以前のコースに切り替えられます。「新版」で加速アイテムとジャンプ台のあるコースに戻れます。
+
 | 操作 | スマホ | キーボード |
 | --- | --- | --- |
 | ターン | コースの好きな位置を押し、そこから左右へドラッグ | ← / → または A / D |
@@ -31,6 +33,8 @@ npm.cmd run play
 ページが非表示になると一時停止します。滑走の途中でスタート画面に戻った場合は記録対象外です。WebGL 2 対応のブラウザーを使ってください。
 
 後ろや横の追手が約3.8m以内に近づくと、こちらに両手を伸ばします。手が届く前に急ターンでかわすとすぐに転び、つかみ損ねたときも動作の終わりに転びます。転倒すると約1.8秒間止まります。コース端まで横移動しても前進速度を保ちます。
+
+金色のアイテムを拾うと約2.6秒間加速します。水色のジャンプ台を踏むと勢いよく高さ約10mまで飛び上がり、飛び出したときの前進速度を保って約3秒間滑空します。空中でもジョイスティックで左右移動と減速ができ、コースの端で止まります。滑空中と着地後1秒は障害物や追手に当たっても無敵です。スキーヤーを包むバリアと画面の「無敵」表示で効果を確認できます。最初のアイテムは約55m、最初のジャンプ台は約104m付近です。以降はコースにランダムな間隔で現れます。
 
 ### コードを変えながら試す
 
@@ -52,6 +56,8 @@ npm.cmd run dev
 
 ## ランキングの仕様
 
+- ランキングの「新版」「旧版」で、それぞれの上位記録と自分の順位を確認できます。ローカルのベストもバージョン別です。
+
 - 表示名は1〜16文字です。ログインは不要です。クライアントがランダムな端末トークンを生成し、ブラウザーのローカルストレージに保存します。名前が同じ別端末は別プレーヤーです。
 - サーバー側は1プレーヤーにつき最高距離を整数メートルで1件保存します。短い記録で再登録しても自己ベストを維持し、新しく指定した表示名を適用します。
 - 同距離は同順位（1位、1位、3位）です。同距離内では、その距離に先に到達した記録を先に表示します。ランキング画面では上位10人と自分の順位を確認できます。
@@ -65,6 +71,7 @@ npm.cmd run dev
 | --- | --- |
 | `index.html`、`src/main.tsx` | ページの入口、React の起動、ローカル配信フォントと共通 CSS の読み込み |
 | `src/App.tsx` | ランキングと遊び方の表示、滑走単位のセッション、結果の登録 |
+| `src/game/edition.ts` | ゲームとランキングで使う新旧バージョンの名前 |
 | `src/components/Game/StartOverlay.tsx` | コースに重ねるタップ開始画面、自己ベスト、効果音切り替え |
 | `src/components/Ranking/Ranking.tsx` | スコア一覧、同順位の表示、自分の順位、取得失敗時の再読み込み |
 | `src/components/Dialogs/Dialogs.tsx` | 遊び方、結果と再挑戦、ランキング登録と結果共有 |
@@ -72,6 +79,7 @@ npm.cmd run dev
 | `src/components/Game/SteeringSurface.tsx` | 指を置いた位置に現れるスティック、ポインターキャプチャ、キーボード入力 |
 | `src/components/Game/useGameSound.ts`、`game.css` | Web Audio の効果音とプレイ画面のレイアウト |
 | `src/game/course.ts` | コース中心線、シード付き障害物配置、各列の通過可能なレーンの確保 |
+| `src/game/features.ts` | 加速アイテムとジャンプ台の寸法、効果時間、滑空の高度と速度 |
 | `src/game/joystick.ts` | ドラッグ入力の正規化と、横ターン時の意図しないブレーキの抑制 |
 | `src/game/reach.ts` | 両手の届く位置、腕を伸ばす長さ、手と選手の接触判定 |
 | `src/game/simulation.ts` | 60Hz 固定ステップの滑走、減速、追手の出現・追跡・転倒・衝突、距離計測 |
@@ -82,6 +90,8 @@ npm.cmd run dev
 | `src/scene/environment/piste.ts`、`tracks.ts` | カーブに沿う雪面メッシュと滑走跡 |
 | `src/scene/environment/instances.ts` | 樹木・柵・追手など繰り返す物体のインスタンス描画 |
 | `src/scene/models/geometry.ts`、`skier.ts`、`courseObjects.ts` | 共通の形状部品、選手、岩・木・山・コース設備の3Dモデルを生成 |
+| `src/scene/models/courseFeatures.ts` | 加速アイテムとジャンプ台の3Dモデルを生成 |
+| `src/scene/models/protectionBarrier.ts` | 無敵中にスキーヤーを包むバリアを描画 |
 | `src/services/profile.ts` | ローカル統計、表示名、サウンド設定の保存と読み込み |
 | `src/services/leaderboard.ts` | 匿名トークンの生成・保持、API 呼び出し、タイムアウト、応答の型確認 |
 | `src/styles/base.css`、`ranking.css` | 配色、共通のダイアログとボタン、ランキングのレイアウト |
@@ -115,12 +125,13 @@ GitHub の `zuiken-code/SkiGame` を Cloudflare Worker `skigame` に接続しま
 
 ### 1. 本番 D1 の準備
 
-このプロジェクトでは、`wrangler.jsonc` のバインディング `DB` に本番 D1 `ski-game` を設定します。初回と、新しい SQL マイグレーションを含む更新の公開前に、リポジトリのルートで以下を実行します。
+`wrangler.jsonc` の `DB` は旧版用の `ski-game` です。これまでの本番記録はこのデータベースに残ります。新版の本番記録は `DB_NEW` の `ski-game-new` に保存します。初回と、新しい SQL マイグレーションを含む更新の公開前に、リポジトリのルートで以下を実行します。
 
 ```powershell
 npm.cmd ci
 npx.cmd wrangler login
 npx.cmd wrangler d1 migrations apply ski-game --remote
+npx.cmd wrangler d1 migrations apply ski-game-new --remote
 ```
 
 既存のスキーマには、未適用のマイグレーションだけが反映されます。ローカルのマイグレーションと記録は `.wrangler/state/` に保存されます。[D1 マイグレーション](https://developers.cloudflare.com/d1/reference/migrations/)
@@ -138,9 +149,15 @@ Cloudflare ダッシュボードの **Workers & Pages → skigame → Settings �
 | Deploy command | `npx wrangler deploy` |
 | Build variable | `NODE_VERSION` に `24.22.1` |
 
-配信元は `wrangler.jsonc` の `assets.directory` で指定しています。Workers Builds でデプロイが成功したら、Cloudflare が表示する `*.workers.dev` を開き、ゲームとランキングを確認します。`/api/leaderboard` は `entries` と `me` を含む JSON を返します。
+配信元は `wrangler.jsonc` の `assets.directory` で指定しています。デプロイ後は `*.workers.dev` でゲームと両方のランキングを確認します。`/api/leaderboard?edition=new` と `/api/leaderboard?edition=classic` は、それぞれの `entries` と `me` を含む JSON を返します。
 
-### 3. 更新を公開する
+### 3. プルリクエストでテストする
+
+本番へ反映する前に、作業ブランチを push して `main` 向けのプルリクエストを作ります。Workers Builds の **Enable Preview Builds** を有効にし、**Preview command** に `npx wrangler preview` を使うと、ブランチへの push でプレビューが更新されます。[Workers Builds のプレビュー設定](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
+
+プレビューのランキングは `wrangler.jsonc` の `previews.d1_databases` にある `ski-game-preview`（新版）と `ski-game-preview-classic`（旧版）に保存します。未適用の SQL がある場合は、プレビュー用 D1 にも適用してからテストします。手元からプレビューだけを再公開するときは、作業ブランチで `npm.cmd run build` の後に `npx.cmd wrangler preview` を実行します。[Worker Previews の設定](https://developers.cloudflare.com/workers/previews/configuration/)
+
+### 4. 更新を本番へ公開する
 
 ローカルで `npm.cmd test` と `npm.cmd run build` を通し、スマホで動作を確認してから `main` に反映します。ビルド・デプロイの結果は Worker の **Deployments** で確認できます。
 
