@@ -32,6 +32,8 @@ npm.cmd run play
 
 後ろや横の追手が約3.8m以内に近づくと、こちらに両手を伸ばします。手が届く前に急ターンでかわすとすぐに転び、つかみ損ねたときも動作の終わりに転びます。転倒すると約1.8秒間止まります。コース端まで横移動しても前進速度を保ちます。
 
+金色のアイテムを拾うと約2.6秒間加速します。水色のジャンプ台を踏むと勢いよく高さ約10mまで飛び上がり、飛び出したときの前進速度を保って約3秒間滑空します。空中でもジョイスティックで左右移動と減速ができ、コースの端で止まります。滑空中と着地後1秒は障害物や追手に当たっても無敵です。スキーヤーを包むバリアと画面の「無敵」表示で効果を確認できます。最初のアイテムは約55m、最初のジャンプ台は約104m付近です。以降はコースにランダムな間隔で現れます。
+
 ### コードを変えながら試す
 
 ホットリロードを使う場合は、同じリポジトリでターミナルを2つ開きます。最初のビルドで `dist/` を用意します。
@@ -72,6 +74,7 @@ npm.cmd run dev
 | `src/components/Game/SteeringSurface.tsx` | 指を置いた位置に現れるスティック、ポインターキャプチャ、キーボード入力 |
 | `src/components/Game/useGameSound.ts`、`game.css` | Web Audio の効果音とプレイ画面のレイアウト |
 | `src/game/course.ts` | コース中心線、シード付き障害物配置、各列の通過可能なレーンの確保 |
+| `src/game/features.ts` | 加速アイテムとジャンプ台の寸法、効果時間、滑空の高度と速度 |
 | `src/game/joystick.ts` | ドラッグ入力の正規化と、横ターン時の意図しないブレーキの抑制 |
 | `src/game/reach.ts` | 両手の届く位置、腕を伸ばす長さ、手と選手の接触判定 |
 | `src/game/simulation.ts` | 60Hz 固定ステップの滑走、減速、追手の出現・追跡・転倒・衝突、距離計測 |
@@ -82,6 +85,8 @@ npm.cmd run dev
 | `src/scene/environment/piste.ts`、`tracks.ts` | カーブに沿う雪面メッシュと滑走跡 |
 | `src/scene/environment/instances.ts` | 樹木・柵・追手など繰り返す物体のインスタンス描画 |
 | `src/scene/models/geometry.ts`、`skier.ts`、`courseObjects.ts` | 共通の形状部品、選手、岩・木・山・コース設備の3Dモデルを生成 |
+| `src/scene/models/courseFeatures.ts` | 加速アイテムとジャンプ台の3Dモデルを生成 |
+| `src/scene/models/protectionBarrier.ts` | 無敵中にスキーヤーを包むバリアを描画 |
 | `src/services/profile.ts` | ローカル統計、表示名、サウンド設定の保存と読み込み |
 | `src/services/leaderboard.ts` | 匿名トークンの生成・保持、API 呼び出し、タイムアウト、応答の型確認 |
 | `src/styles/base.css`、`ranking.css` | 配色、共通のダイアログとボタン、ランキングのレイアウト |
@@ -140,7 +145,13 @@ Cloudflare ダッシュボードの **Workers & Pages → skigame → Settings �
 
 配信元は `wrangler.jsonc` の `assets.directory` で指定しています。Workers Builds でデプロイが成功したら、Cloudflare が表示する `*.workers.dev` を開き、ゲームとランキングを確認します。`/api/leaderboard` は `entries` と `me` を含む JSON を返します。
 
-### 3. 更新を公開する
+### 3. プルリクエストでテストする
+
+本番へ反映する前に、作業ブランチを push して `main` 向けのプルリクエストを作ります。Workers Builds の **Enable Preview Builds** を有効にし、**Preview command** に `npx wrangler preview` を使うと、ブランチへの push でプレビューが更新されます。[Workers Builds のプレビュー設定](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
+
+プレビューのランキングは `wrangler.jsonc` の `previews.d1_databases` にある `ski-game-preview` に保存します。ここに未適用の SQL がある場合は、プレビュー用 D1 にも適用してからテストします。手元からプレビューだけを再公開するときは、作業ブランチで `npm.cmd run build` の後に `npx.cmd wrangler preview` を実行します。[Worker Previews の設定](https://developers.cloudflare.com/workers/previews/configuration/)
+
+### 4. 更新を本番へ公開する
 
 ローカルで `npm.cmd test` と `npm.cmd run build` を通し、スマホで動作を確認してから `main` に反映します。ビルド・デプロイの結果は Worker の **Deployments** で確認できます。
 

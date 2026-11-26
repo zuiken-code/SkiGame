@@ -332,6 +332,29 @@
   background: #ffdc5a;
   border-color: #efab32;
 }
+.ski-features {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.ski-features + .ski-alert {
+  margin-top: 0.35rem;
+}
+.ski-boost {
+  color: #47300b;
+  background: #ffdc5a;
+  border-color: #dc950d;
+  font-variant-numeric: tabular-nums;
+}
+.ski-protection {
+  color: #fff;
+  background: #5434a5;
+  border-color: #352071;
+  font-variant-numeric: tabular-nums;
+}
+.ski-protection strong {
+  font-size: 0.95rem;
+}
 .ski-key-hint {
   display: none;
 }

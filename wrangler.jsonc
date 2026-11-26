@@ -17,5 +17,15 @@
       "preview_database_id": "00000000-0000-4000-8000-000000000001",
       "migrations_dir": "./migrations"
     }
-  ]
+  ],
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "ski-game-preview",
+        "database_id": "59da0d6c-a2db-459b-8262-b82da201eef4",
+        "migrations_dir": "./migrations"
+      }
+    ]
+  }
 }

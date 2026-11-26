@@ -1,5 +1,15 @@
 import { COURSE_HALF_WIDTH, courseCenter, createCourse, extendCourse } from './course.ts'
 import type { Course, Obstacle } from './course.ts'
+import {
+  BOOST_DURATION,
+  BOOST_PICKUP_RADIUS,
+  BOOST_SPEED,
+  GLIDE_DURATION,
+  GLIDE_LAUNCH_SPEED_SCALE,
+  LANDING_PROTECTION_DURATION,
+  crossesRampLip,
+  flightSteeringScale,
+} from './features.ts'
 import { REACH_RANGE, REACH_TIME, touchesGlove } from './reach.ts'
 
 export { COURSE_HALF_WIDTH, courseCenter }
@@ -29,6 +39,11 @@ export interface GameState extends Course {
   distance: number
   x: number
   speed: number
+  baseSpeed: number
+  boostRemaining: number
+  glideRemaining: number
+  glideCruiseSpeed: number
+  landingProtectionRemaining: number
   lean: number
   elapsed: number
   eliminated: number
@@ -82,12 +97,17 @@ function addEnemy(state: GameState, distance: number, offset: number) {
 
 /** Positions are in metres, positive distance is downhill, and time is in seconds. */
 export function createGame(seed = Math.floor(Math.random() * 4294967296)): GameState {
-  const course = createCourse(seededRandom(seed))
+  const course = createCourse(seededRandom(seed), seededRandom(seed ^ 0x7f4a7c15))
   const state: GameState = {
     ...course,
     distance: 0,
     x: 0,
     speed: startSpeed,
+    baseSpeed: startSpeed,
+    boostRemaining: 0,
+    glideRemaining: 0,
+    glideCruiseSpeed: 0,
+    landingProtectionRemaining: 0,
     lean: 0,
     elapsed: 0,
     eliminated: 0,
@@ -114,7 +134,42 @@ function hits(x: number, distance: number, radius: number, obstacle: Obstacle): 
   return (x - obstacle.x) ** 2 + dz * dz < combined * combined
 }
 
+function useCourseFeatures(state: GameState, previousX: number, previousDistance: number, cruise: number) {
+  for (let i = 0; i < state.features.length; i++) {
+    const feature = state.features[i]
+    if (feature.kind === 'boost') {
+      if (
+        Math.hypot(state.x - feature.x, state.distance - feature.distance) <= BOOST_PICKUP_RADIUS
+      ) {
+        state.features.splice(i, 1)
+        state.boostRemaining = BOOST_DURATION
+        i--
+      }
+    } else if (crossesRampLip(feature, previousX, previousDistance, state.x, state.distance)) {
+      const boost = state.boostRemaining > 0 ? BOOST_SPEED : 0
+      const launchBase = Math.min(state.baseSpeed, cruise)
+      state.glideCruiseSpeed = launchBase * GLIDE_LAUNCH_SPEED_SCALE + boost
+      state.baseSpeed = state.glideCruiseSpeed
+      state.glideRemaining = GLIDE_DURATION
+      return
+    }
+  }
+}
+
+function downhillSpeed(state: GameState) {
+  const boost = state.glideRemaining === 0 && state.boostRemaining > 0 ? BOOST_SPEED : 0
+  return state.baseSpeed + boost
+}
+
+export function isInvulnerable(state: GameState) {
+  return state.glideRemaining > 0 || state.landingProtectionRemaining > 0
+}
+
 function movePlayer(state: GameState, input: GameInput, cruise: number) {
+  const previousX = state.x
+  const previousDistance = state.distance
+  const flightBefore = state.glideRemaining
+  const wasGliding = flightBefore > 0
   const steer = clamp(input.steer, -1, 1)
   const strongSteer = Math.abs(steer) >= 0.7 ? Math.sign(steer) : 0
   if (strongSteer && strongSteer !== state.strongSteer) state.dodgeTimer = 0.34
@@ -122,18 +177,36 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   state.dodgeTimer = strongSteer ? Math.max(0, state.dodgeTimer - tick) : 0
   const brake = clamp(input.brake, 0, 1)
   const center = courseCenter(state.distance)
-  const targetSpeed = cruise * (1 - 0.4 * brake)
-  state.speed += clamp(targetSpeed - state.speed, -14 * tick, 5 * tick)
+  const brakeScale = 1 - 0.4 * brake
+  const targetSpeed = (wasGliding ? state.glideCruiseSpeed : cruise) * brakeScale
+  state.baseSpeed += clamp(targetSpeed - state.baseSpeed, -14 * tick, 5 * tick)
+  state.speed = downhillSpeed(state)
   state.distance += state.speed * tick
 
   const newCenter = courseCenter(state.distance)
-  const turnSpeed = 10.6 + Math.min(23, state.speed * (23 / 32)) * 0.09
-  state.lateralSpeed += (steer * turnSpeed - state.lateralSpeed) * (tick * 8)
-  // The skis follow part of the bend. The remaining drift is steered by the player.
+  state.boostRemaining = Math.max(0, state.boostRemaining - tick)
+  state.glideRemaining = state.glideRemaining > tick + 1e-9 ? state.glideRemaining - tick : 0
+  if (wasGliding && state.glideRemaining === 0) {
+    state.landingProtectionRemaining = LANDING_PROTECTION_DURATION
+  } else {
+    const remaining = state.landingProtectionRemaining
+    state.landingProtectionRemaining = remaining > tick + 1e-9 ? remaining - tick : 0
+  }
+
+  const steeringSpeed = wasGliding ? cruise * brakeScale : state.baseSpeed
+  const turnSpeed = 10.6 + Math.min(23, steeringSpeed * (23 / 32)) * 0.09
+  const turnScale = wasGliding ? flightSteeringScale(flightBefore) : 1
+  state.lateralSpeed += (steer * turnSpeed * turnScale - state.lateralSpeed) * (tick * 8)
+  // The skier follows part of the bend; the player steers the rest.
   state.x += state.lateralSpeed * tick + (newCenter - center) * 0.46
   state.x = clamp(state.x, newCenter - edge, newCenter + edge)
   state.lean += (steer - state.lean) * (tick * 9)
-  if (state.obstacles.some((obstacle) => hits(state.x, state.distance, playerRadius, obstacle))) {
+  if (!wasGliding) useCourseFeatures(state, previousX, previousDistance, cruise)
+  state.speed = downhillSpeed(state)
+  if (
+    !isInvulnerable(state) &&
+    state.obstacles.some((obstacle) => hits(state.x, state.distance, playerRadius, obstacle))
+  ) {
     state.endReason = 'obstacle'
   }
 }
@@ -145,6 +218,7 @@ function moveEnemies(
   distanceBefore: number,
 ) {
   const playerOffset = state.x - courseCenter(state.distance)
+  const vulnerable = !isInvulnerable(state)
   for (let index = state.enemies.length - 1; index >= 0; index--) {
     const enemy = state.enemies[index]
     if (enemy.distance < state.distance - 52) {
@@ -159,7 +233,7 @@ function moveEnemies(
     const reachX = playerXBefore - enemy.x
     const reachGap = distanceBefore - enemy.distance
     const range = Math.hypot(reachX, reachGap)
-    if (enemy.reachTimer === 0 && range > 0.001 && range <= REACH_RANGE) {
+    if (vulnerable && enemy.reachTimer === 0 && range > 0.001 && range <= REACH_RANGE) {
       enemy.reachX = reachX / range
       enemy.reachDownhill = reachGap / range
       enemy.reachTimer = REACH_TIME
@@ -195,6 +269,7 @@ function moveEnemies(
     const lateralGap = state.x - enemy.x
     const forwardGap = state.distance - enemy.distance
     if (
+      vulnerable &&
       touchesGlove(
         lateralGap,
         forwardGap,
@@ -211,6 +286,7 @@ function moveEnemies(
       enemy.reachX * state.strongSteer >= -0.35 &&
       (state.x - playerXBefore) * state.strongSteer > 1.4 * tick
     const dodged =
+      vulnerable &&
       state.dodgeTimer > 0 &&
       steeringAway &&
       Math.hypot(lateralGap, forwardGap) <= REACH_RANGE + 0.5

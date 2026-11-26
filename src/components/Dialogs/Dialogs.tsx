@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import {
   ArrowDown,
   ArrowLeftRight,
+  ArrowUp,
   ArrowUpRight,
   Check,
   Crosshair,
@@ -13,6 +14,7 @@ import {
   Share2,
   Trophy,
   X,
+  Zap,
 } from 'lucide-react'
 import { validName } from '../../services/profile'
 import type { RunEndReason } from '../../game/simulation'
@@ -88,6 +90,20 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
           <p>
             <strong>手前に引いて減速</strong>
             <span>指を離すと通常速度に戻ります。</span>
+          </p>
+        </div>
+        <div>
+          <Zap />
+          <p>
+            <strong>金色のアイテムを取って加速</strong>
+            <span>アイテムの上を通ると約2.6秒間スピードが上がります。</span>
+          </p>
+        </div>
+        <div>
+          <ArrowUp />
+          <p>
+            <strong>水色のジャンプ台で滑空</strong>
+            <span>滑空中と着地後1秒は無敵です。バリアが出ている間は障害物や追手をすり抜けられます。</span>
           </p>
         </div>
       </div>
