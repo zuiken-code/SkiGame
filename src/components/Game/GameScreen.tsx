@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react'
 import {
   CornerDownLeft,
   Gauge,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { createGame, isInvulnerable, stepGame } from '../../game/simulation'
 import type { GameState, RunEndReason } from '../../game/simulation'
+import type { GameEdition } from '../../game/edition'
 import { SkiScene } from '../../scene/SkiScene'
 import SteeringSurface from './SteeringSurface'
 import { StartOverlay } from './StartOverlay'
@@ -26,6 +27,8 @@ export interface RunControls {
 
 interface GameScreenProps {
   ref: Ref<RunControls>
+  edition: GameEdition
+  onEditionChange: () => void
   onStart: () => void
   onFinish: (distance: number, eliminated: number, reason: RunEndReason) => void
   onGuide: () => void
@@ -52,6 +55,8 @@ function readHud(game: GameState) {
 
 export default function GameScreen({
   ref,
+  edition,
+  onEditionChange,
   onFinish,
   onStart,
   onGuide,
@@ -60,7 +65,7 @@ export default function GameScreen({
   soundEnabled,
   best,
 }: GameScreenProps) {
-  const [simulation] = useState(() => ({ current: createGame() }))
+  const simulation = useMemo(() => ({ current: createGame(undefined, edition) }), [edition])
   const [phase, setPhase] = useState<Phase>('loading')
   const [confirmExit, setConfirmExit] = useState(false)
   const [hud, setHud] = useState(() => readHud(simulation.current))
@@ -85,19 +90,19 @@ export default function GameScreen({
 
   const start = useCallback(() => {
     if (phaseRef.current !== 'ready' && phaseRef.current !== 'finished') return
-    simulation.current = createGame()
+    simulation.current = createGame(undefined, edition)
     input.current = { steer: 0, brake: 0 }
     setHud(readHud(simulation.current))
     setDodgeNotice(false)
     wake()
     callbacks.current.onStart()
     changePhase(document.hidden ? 'paused' : 'playing')
-  }, [changePhase, simulation, wake])
+  }, [changePhase, edition, simulation, wake])
 
   const reset = useCallback(() => {
-    simulation.current = createGame()
+    simulation.current = createGame(undefined, edition)
     changePhase('ready')
-  }, [changePhase, simulation])
+  }, [changePhase, edition, simulation])
 
   useImperativeHandle(ref, () => ({ start, reset }), [start, reset])
 
@@ -205,6 +210,8 @@ export default function GameScreen({
       {(phase === 'ready' || phase === 'loading') && (
         <StartOverlay
           ready={phase === 'ready'}
+          edition={edition}
+          onEditionChange={onEditionChange}
           onPlay={start}
           onGuide={onGuide}
           onRanking={onRanking}

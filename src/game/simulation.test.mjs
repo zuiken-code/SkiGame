@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { COURSE_HALF_WIDTH, courseCenter, createGame, RIVAL_FALL_TIME, stepGame } from './simulation.ts'
 import { readStick } from './joystick.ts'
+import { extendCourse } from './course.ts'
 import {
   BOOST_DURATION,
   BOOST_SPEED,
@@ -159,6 +160,17 @@ test('the opening course offers the boost before the first jump ramp', () => {
   assert.ok(game.glideRemaining > 0 && game.boostRemaining > 0)
   assert.equal(ramp.heading, Math.atan2(courseCenter(ramp.distance) - courseCenter(ramp.distance - RAMP_LENGTH), RAMP_LENGTH))
   assert.ok(!game.features.includes(boost))
+})
+
+test('the classic edition keeps the obstacle course without boost pickups or ramps', () => {
+  const classic = createGame(2, 'classic')
+  const modern = createGame(2, 'new')
+  for (let distance = 0; distance <= 700; distance += 20) {
+    extendCourse(classic, distance)
+    extendCourse(modern, distance)
+    assert.deepEqual(classic.features, [])
+    assert.deepEqual(classic.obstacles, modern.obstacles)
+  }
 })
 
 test('hitting a rock or tree ends the run on the collision tick and freezes the distance', () => {

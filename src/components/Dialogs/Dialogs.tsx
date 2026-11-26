@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { validName } from '../../services/profile'
+import { editionNames, type GameEdition } from '../../game/edition'
 import type { RunEndReason } from '../../game/simulation'
 
 export function Modal({
@@ -57,7 +58,15 @@ export function Modal({
   )
 }
 
-export function Guide({ close, start }: { close: () => void; start: () => void }) {
+export function Guide({
+  edition,
+  close,
+  start,
+}: {
+  edition: GameEdition
+  close: () => void
+  start: () => void
+}) {
   return (
     <Modal title="遊び方" onClose={close}>
       <p className="modal-lead">スキーは自動で前へ。指一本で進路と速度を調整しよう。</p>
@@ -92,20 +101,24 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
             <span>指を離すと通常速度に戻ります。</span>
           </p>
         </div>
-        <div>
-          <Zap />
-          <p>
-            <strong>金色のアイテムを取って加速</strong>
-            <span>アイテムの上を通ると約2.6秒間スピードが上がります。</span>
-          </p>
-        </div>
-        <div>
-          <ArrowUp />
-          <p>
-            <strong>水色のジャンプ台で滑空</strong>
-            <span>滑空中と着地後1秒は無敵です。バリアが出ている間は障害物や追手をすり抜けられます。</span>
-          </p>
-        </div>
+        {edition === 'new' && (
+          <>
+            <div>
+              <Zap />
+              <p>
+                <strong>金色のアイテムを取って加速</strong>
+                <span>アイテムの上を通ると約2.6秒間スピードが上がります。</span>
+              </p>
+            </div>
+            <div>
+              <ArrowUp />
+              <p>
+                <strong>水色のジャンプ台で滑空</strong>
+                <span>滑空中と着地後1秒は無敵です。バリアが出ている間は障害物や追手をすり抜けられます。</span>
+              </p>
+            </div>
+          </>
+        )}
       </div>
       <p className="keyboard-note">
         <Gamepad2 size={16} />
@@ -120,6 +133,7 @@ export function Guide({ close, start }: { close: () => void; start: () => void }
 }
 
 export interface Result {
+  edition: GameEdition
   distance: number
   eliminated: number
   reason: RunEndReason
@@ -140,7 +154,7 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'manual'>('idle')
-  const shareText = `⛷️ 雪山おにごっこで ${result.distance.toLocaleString('ja-JP')} m 滑った！`
+  const shareText = `⛷️ 雪山おにごっこ（${editionNames[result.edition]}）で ${result.distance.toLocaleString('ja-JP')} m 滑った！`
   const gameUrl = new URL(window.location.pathname, window.location.origin).href
   const shareMessage = `${shareText}\n${gameUrl}`
 
@@ -230,7 +244,7 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
       </div>
       {rank === null ? (
         <form onSubmit={save} className="dialog-form result-form">
-          <label htmlFor="score-name">ランキングに載せる名前</label>
+          <label htmlFor="score-name">{editionNames[result.edition]}ランキングに載せる名前</label>
           <div className="input-row">
             <input
               id="score-name"

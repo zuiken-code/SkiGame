@@ -1,36 +1,50 @@
-export interface Profile {
-  name: string
+import type { GameEdition } from '../game/edition'
+
+interface RunRecords {
   best: number
   runs: number
   eliminated: number
-  sound: boolean
 }
 
-const initial: Profile = { name: '', best: 0, runs: 0, eliminated: 0, sound: true }
-const key = 'powder-chase.profile.v1'
+export interface Profile {
+  name: string
+  sound: boolean
+  records: Record<GameEdition, RunRecords>
+}
+
+const classicKey = 'powder-chase.profile.v1'
+const newKey = 'powder-chase.profile.new.v1'
 
 function count(value: unknown) {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
-export function readProfile(): Profile {
+function readStorage(key: string): Record<string, unknown> {
   try {
     const data = JSON.parse(localStorage.getItem(key) ?? '{}')
-    return {
-      name: typeof data.name === 'string' ? data.name : '',
-      best: count(data.best),
-      runs: count(data.runs),
-      eliminated: count(data.eliminated),
-      sound: typeof data.sound === 'boolean' ? data.sound : true,
-    }
+    return data && typeof data === 'object' ? data : {}
   } catch {
-    return { ...initial }
+    return {}
   }
 }
 
-export function writeProfile(profile: Profile) {
+function readRecords(data: Record<string, unknown>): RunRecords {
+  return { best: count(data.best), runs: count(data.runs), eliminated: count(data.eliminated) }
+}
+
+export function readProfile(): Profile {
+  const classic = readStorage(classicKey)
+  return {
+    name: typeof classic.name === 'string' ? classic.name : '',
+    sound: typeof classic.sound === 'boolean' ? classic.sound : true,
+    records: { classic: readRecords(classic), new: readRecords(readStorage(newKey)) },
+  }
+}
+
+export function writeProfile({ name, sound, records }: Profile) {
   try {
-    localStorage.setItem(key, JSON.stringify(profile))
+    localStorage.setItem(classicKey, JSON.stringify({ name, sound, ...records.classic }))
+    localStorage.setItem(newKey, JSON.stringify(records.new))
   } catch {
     /* Session-only play is available. */
   }

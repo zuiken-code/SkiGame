@@ -1,10 +1,34 @@
 import { FlagTriangleRight, LoaderCircle, RotateCw } from 'lucide-react'
 import type { Leaderboard, LeaderboardEntry } from '../../services/leaderboard'
+import { editionNames, type GameEdition } from '../../game/edition'
 
 export interface BoardState {
   data: Leaderboard | null
   loading: boolean
   error: string
+}
+
+export function EditionPicker({
+  edition,
+  onChange,
+}: {
+  edition: GameEdition
+  onChange: (edition: GameEdition) => void
+}) {
+  return (
+    <div className="rank-editions" role="group" aria-label="ランキングのバージョン">
+      {(['new', 'classic'] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={edition === option}
+          onClick={() => onChange(option)}
+        >
+          {editionNames[option]}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function Row({ entry }: { entry: LeaderboardEntry }) {

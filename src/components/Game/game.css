@@ -110,6 +110,14 @@
 .ski-start-sound:hover {
   background: #fff3c0;
 }
+.ski-start-nav .ski-edition-switch:not(:hover) {
+  background: #e6effb;
+}
+@media (max-width: 360px) {
+  .ski-start-nav button svg {
+    display: none;
+  }
+}
 .ski-title,
 .ski-best {
   pointer-events: none;

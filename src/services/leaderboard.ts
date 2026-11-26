@@ -1,3 +1,5 @@
+import type { GameEdition } from '../game/edition'
+
 export interface LeaderboardEntry {
   rank: number
   name: string
@@ -37,6 +39,7 @@ function deviceToken(): string {
 
 async function apiRequest(
   endpoint: string,
+  edition: GameEdition,
   method: 'GET' | 'POST',
   body?: object,
 ): Promise<unknown> {
@@ -47,7 +50,7 @@ async function apiRequest(
   try {
     const headers = new Headers({ Authorization: `Bearer ${deviceToken()}` })
     if (body) headers.set('Content-Type', 'application/json')
-    response = await fetch(`/api/${endpoint}`, {
+    response = await fetch(`/api/${endpoint}?edition=${edition}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -93,20 +96,21 @@ function parseLeaderboard(data: unknown): Leaderboard {
   return { entries: data.entries, me: data.me }
 }
 
-export async function startRun(): Promise<string> {
-  const data = await apiRequest('runs', 'POST')
+export async function startRun(edition: GameEdition): Promise<string> {
+  const data = await apiRequest('runs', edition, 'POST')
   if (!isRecord(data) || typeof data.runId !== 'string') throw new Error(connectionError)
   return data.runId
 }
 
-export async function getLeaderboard(): Promise<Leaderboard> {
-  return parseLeaderboard(await apiRequest('leaderboard', 'GET'))
+export async function getLeaderboard(edition: GameEdition): Promise<Leaderboard> {
+  return parseLeaderboard(await apiRequest('leaderboard', edition, 'GET'))
 }
 
 export async function submitScore(
+  edition: GameEdition,
   runId: string,
   name: string,
   distance: number,
 ): Promise<Leaderboard> {
-  return parseLeaderboard(await apiRequest('leaderboard', 'POST', { runId, name, distance }))
+  return parseLeaderboard(await apiRequest('leaderboard', edition, 'POST', { runId, name, distance }))
 }

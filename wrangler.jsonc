@@ -16,12 +16,25 @@
       // Keep the existing local D1 data when binding the production database.
       "preview_database_id": "00000000-0000-4000-8000-000000000001",
       "migrations_dir": "./migrations"
+    },
+    {
+      "binding": "DB_NEW",
+      "database_name": "ski-game-new",
+      "database_id": "462732d0-7310-49f6-82af-e06a76ff871c",
+      "migrations_dir": "./migrations"
     }
   ],
   "previews": {
+    "vars": { "UNVERSIONED_EDITION": "new" },
     "d1_databases": [
       {
         "binding": "DB",
+        "database_name": "ski-game-preview-classic",
+        "database_id": "dbb78b3f-0d10-47dc-8bfa-5c31aa20e4df",
+        "migrations_dir": "./migrations"
+      },
+      {
+        "binding": "DB_NEW",
         "database_name": "ski-game-preview",
         "database_id": "59da0d6c-a2db-459b-8262-b82da201eef4",
         "migrations_dir": "./migrations"

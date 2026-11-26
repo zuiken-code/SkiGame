@@ -1,76 +1,106 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
-import { ScoreList, OwnRank, type BoardState } from './components/Ranking/Ranking'
+import { EditionPicker, ScoreList, OwnRank, type BoardState } from './components/Ranking/Ranking'
 import { Guide, Modal, ResultDialog, type Result } from './components/Dialogs/Dialogs'
 import type { RunControls } from './components/Game/GameScreen'
+import type { GameEdition } from './game/edition'
 import type { RunEndReason } from './game/simulation'
 import { readProfile, writeProfile } from './services/profile'
 import { getLeaderboard, startRun, submitScore } from './services/leaderboard'
 
 const GameScreen = lazy(() => import('./components/Game/GameScreen'))
+const loadingBoard: BoardState = { data: null, loading: true, error: '' }
 
 export default function App() {
   const [modal, setModal] = useState<'guide' | 'ranking' | null>(null)
+  const [edition, setEdition] = useState<GameEdition>('new')
+  const [rankingEdition, setRankingEdition] = useState<GameEdition>('new')
   const [profile, setProfile] = useState(readProfile)
-  const [board, setBoard] = useState<BoardState>({ data: null, loading: true, error: '' })
+  const [boards, setBoards] = useState<Record<GameEdition, BoardState>>({
+    new: loadingBoard,
+    classic: loadingBoard,
+  })
   const [result, setResult] = useState<Result | null>(null)
-  const runId = useRef<Promise<string | null> | null>(null)
+  const run = useRef<{ edition: GameEdition; id: Promise<string | null> } | null>(null)
   const controls = useRef<RunControls>(null)
-  const requestVersion = useRef(0)
+  const requestVersions = useRef({ new: 0, classic: 0 })
+  const best = Math.max(profile.records[edition].best, boards[edition].data?.me?.distance ?? 0)
 
-  const refresh = useCallback(async () => {
-    const version = ++requestVersion.current
-    setBoard((current) => ({ ...current, loading: true, error: '' }))
+  const refresh = useCallback(async (target: GameEdition) => {
+    const version = ++requestVersions.current[target]
+    setBoards((current) => ({
+      ...current,
+      [target]: { ...current[target], loading: true, error: '' },
+    }))
     try {
-      const data = await getLeaderboard()
-      if (version === requestVersion.current) setBoard({ data, loading: false, error: '' })
+      const data = await getLeaderboard(target)
+      if (version === requestVersions.current[target]) {
+        setBoards((current) => ({ ...current, [target]: { data, loading: false, error: '' } }))
+      }
     } catch (cause) {
-      if (version === requestVersion.current)
-        setBoard((current) => ({ ...current, loading: false, error: String(cause) }))
+      if (version === requestVersions.current[target]) {
+        setBoards((current) => ({
+          ...current,
+          [target]: { ...current[target], loading: false, error: String(cause) },
+        }))
+      }
     }
   }, [])
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    void refresh(edition)
+  }, [edition, refresh])
   useEffect(() => {
     writeProfile(profile)
   }, [profile])
 
   const onStart = useCallback(() => {
-    runId.current = startRun().catch(() => null)
+    run.current = { edition, id: startRun(edition).catch(() => null) }
     setResult(null)
     setModal(null)
-  }, [])
+  }, [edition])
   const onFinish = useCallback(
     (rawDistance: number, eliminated: number, reason: RunEndReason) => {
       const distance = Math.floor(rawDistance)
       setResult({
+        edition,
         distance,
         eliminated,
         reason,
-        newBest: distance > Math.max(profile.best, board.data?.me?.distance ?? 0),
+        newBest: distance > best,
       })
       setProfile((p) => ({
         ...p,
-        runs: p.runs + 1,
-        best: Math.max(p.best, distance),
-        eliminated: p.eliminated + eliminated,
+        records: {
+          ...p.records,
+          [edition]: {
+            runs: p.records[edition].runs + 1,
+            best: Math.max(p.records[edition].best, distance),
+            eliminated: p.records[edition].eliminated + eliminated,
+          },
+        },
       }))
     },
-    [profile.best, board.data?.me?.distance],
+    [best, edition],
   )
   async function register(name: string) {
-    const id = await runId.current
+    const active = run.current
+    const id = active && active.edition === result?.edition ? await active.id : null
     if (!id || !result)
       throw new Error(
         '開始時にランキングへ接続できませんでした。今回の距離はマイレコードに保存しました。',
       )
-    const data = await submitScore(id, name, result.distance)
-    requestVersion.current++
-    setBoard({ data, loading: false, error: '' })
+    const target = result.edition
+    const data = await submitScore(target, id, name, result.distance)
+    requestVersions.current[target]++
+    setBoards((current) => ({ ...current, [target]: { data, loading: false, error: '' } }))
     setProfile((p) => ({ ...p, name }))
     if (!data.me) throw new Error('順位を取得できませんでした。もう一度登録してください。')
     return data.me.rank
+  }
+
+  function showRanking(target: GameEdition) {
+    setRankingEdition(target)
+    void refresh(target)
   }
 
   return (
@@ -85,25 +115,36 @@ export default function App() {
       >
         <GameScreen
           ref={controls}
+          edition={edition}
           soundEnabled={profile.sound}
-          best={Math.max(profile.best, board.data?.me?.distance ?? 0)}
+          best={best}
+          onEditionChange={() => setEdition((value) => (value === 'new' ? 'classic' : 'new'))}
           onStart={onStart}
           onFinish={onFinish}
           onGuide={() => setModal('guide')}
           onRanking={() => {
             setModal('ranking')
-            void refresh()
+            showRanking(edition)
           }}
           onSound={() => setProfile((p) => ({ ...p, sound: !p.sound }))}
         />
       </Suspense>
       {modal === 'guide' && (
-        <Guide close={() => setModal(null)} start={() => controls.current?.start()} />
+        <Guide
+          edition={edition}
+          close={() => setModal(null)}
+          start={() => controls.current?.start()}
+        />
       )}
       {modal === 'ranking' && (
         <Modal title="ランキング" onClose={() => setModal(null)}>
-          <ScoreList board={board} limit={10} refresh={refresh} />
-          <OwnRank board={board} />
+          <EditionPicker edition={rankingEdition} onChange={showRanking} />
+          <ScoreList
+            board={boards[rankingEdition]}
+            limit={10}
+            refresh={() => void refresh(rankingEdition)}
+          />
+          <OwnRank board={boards[rankingEdition]} />
         </Modal>
       )}
       {result && (

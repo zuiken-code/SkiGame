@@ -1,5 +1,6 @@
 import { COURSE_HALF_WIDTH, courseCenter, createCourse, extendCourse } from './course.ts'
 import type { Course, Obstacle } from './course.ts'
+import type { GameEdition } from './edition.ts'
 import {
   BOOST_DURATION,
   BOOST_PICKUP_RADIUS,
@@ -96,8 +97,11 @@ function addEnemy(state: GameState, distance: number, offset: number) {
 }
 
 /** Positions are in metres, positive distance is downhill, and time is in seconds. */
-export function createGame(seed = Math.floor(Math.random() * 4294967296)): GameState {
-  const course = createCourse(seededRandom(seed), seededRandom(seed ^ 0x7f4a7c15))
+export function createGame(
+  seed = Math.floor(Math.random() * 4294967296),
+  edition: GameEdition = 'new',
+): GameState {
+  const course = createCourse(seededRandom(seed), seededRandom(seed ^ 0x7f4a7c15), edition)
   const state: GameState = {
     ...course,
     distance: 0,

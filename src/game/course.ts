@@ -1,4 +1,5 @@
 import { RAMP_HALF_WIDTH, RAMP_LENGTH, rampCoordinates, type CourseFeature, type JumpRamp } from './features.ts'
+import type { GameEdition } from './edition.ts'
 
 export const COURSE_HALF_WIDTH = 10
 
@@ -44,6 +45,7 @@ function rampFitsCourse(ramp: JumpRamp, obstacles: readonly Obstacle[]) {
 }
 
 export interface Course {
+  edition: GameEdition
   obstacles: Obstacle[]
   features: CourseFeature[]
   nextRow: number
@@ -68,8 +70,9 @@ function addObstacle(course: Course, distance: number, offset: number, kind: Obs
 const firstBoost = 55
 const firstRamp = 104
 
-export function createCourse(random: () => number, featureRandom: () => number): Course {
+export function createCourse(random: () => number, featureRandom: () => number, edition: GameEdition): Course {
   const course: Course = {
+    edition,
     obstacles: [],
     features: [],
     nextRow: 49,
@@ -106,7 +109,7 @@ export function extendCourse(course: Course, playerDistance: number) {
     }
     course.nextRow += 20 + (1 - difficulty) * 6 + random() * 10
   }
-  extendFeatures(course, playerDistance)
+  if (course.edition === 'new') extendFeatures(course, playerDistance)
 }
 
 function extendFeatures(course: Course, playerDistance: number) {

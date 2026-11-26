@@ -130,10 +130,13 @@ async function finishRun(request: Request, db: D1Database, playerId: string) {
 
 interface Env {
   DB: D1Database
+  DB_NEW: D1Database
+  UNVERSIONED_EDITION?: 'new'
 }
 
 async function fetchRequest(request: Request, env: Env): Promise<Response> {
-  const endpoint = new URL(request.url).pathname.replace(/\/$/, '')
+  const url = new URL(request.url)
+  const endpoint = url.pathname.replace(/\/$/, '')
   const { method } = request
   if (endpoint !== '/api/runs' && endpoint !== '/api/leaderboard') {
     return error('APIが見つかりません。', 404)
@@ -144,15 +147,21 @@ async function fetchRequest(request: Request, env: Env): Promise<Response> {
     return response
   }
 
+  // The original production client does not send an edition. Neither did the first preview.
+  const edition = url.searchParams.get('edition') ?? env.UNVERSIONED_EDITION ?? 'classic'
+  if (edition !== 'classic' && edition !== 'new') {
+    return error('ゲームのバージョンを確認できません。', 400)
+  }
+  const db = edition === 'new' ? env.DB_NEW : env.DB
   try {
     const authorization = request.headers.get('Authorization')
     const match = authorization?.match(/^Bearer ([0-9a-f]{64})$/)
     if (authorization && !match) return error('プレーヤーIDを確認できません。', 401)
     const playerId = match ? await playerIdFor(match[1]) : null
-    if (method === 'GET') return await leaderboard(env.DB, playerId)
+    if (method === 'GET') return await leaderboard(db, playerId)
     if (!playerId) return error('プレーヤーIDが必要です。', 401)
-    if (endpoint === '/api/runs') return await startRun(env.DB, playerId)
-    return await finishRun(request, env.DB, playerId)
+    if (endpoint === '/api/runs') return await startRun(db, playerId)
+    return await finishRun(request, db, playerId)
   } catch (cause) {
     console.error(
       'Leaderboard database request failed',

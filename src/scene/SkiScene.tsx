@@ -35,7 +35,7 @@ function AlpineWorld({ simulation, preview, onReady, onUnavailable }: SkiScenePr
   const invalidate = useThree((store) => store.invalidate)
   useEffect(() => {
     if (preview) invalidate()
-  }, [preview, invalidate])
+  }, [preview, invalidate, simulation])
   useEffect(() => () => world.dispose(), [world])
   useEffect(() => {
     const canvas = renderer.domElement
