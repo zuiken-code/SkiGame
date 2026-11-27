@@ -4,10 +4,12 @@ export const BOOST_PICKUP_RADIUS = 1.2
 export const RAMP_HALF_WIDTH = 1.65
 export const RAMP_LENGTH = 3.8
 export const RAMP_HEIGHT = 0.68
-export const GLIDE_DURATION = 3
+export const GLIDE_DURATION = 20
 export const GLIDE_HEIGHT = 10
 export const GLIDE_LAUNCH_SPEED_SCALE = 1.95
-export const LANDING_PROTECTION_DURATION = 1
+export const PIGEON_SCALE = 1.6
+export const PIGEON_RADIUS = 0.72 * PIGEON_SCALE
+export const SKIER_CENTER_HEIGHT = 0.8
 
 interface FeaturePosition {
   x: number
@@ -20,6 +22,19 @@ export interface JumpRamp extends FeaturePosition {
 }
 
 export type CourseFeature = (FeaturePosition & { kind: 'boost' }) | JumpRamp
+
+export interface Pigeon extends FeaturePosition {
+  id: number
+  height: number
+}
+
+export function pigeonPosition(pigeon: Pigeon, elapsed: number) {
+  const phase = pigeon.id * 2.39996
+  return {
+    x: pigeon.x + Math.sin(elapsed * 1.85 + phase) * 0.95,
+    height: pigeon.height + Math.sin(elapsed * 2.6 + phase) * 0.24,
+  }
+}
 
 export function rampCoordinates(ramp: JumpRamp, x: number, distance: number) {
   const dx = x - ramp.x
@@ -48,12 +63,6 @@ export function crossesRampLip(
 export function smoothstep(value: number) {
   const progress = Math.max(0, Math.min(1, value))
   return progress * progress * (3 - 2 * progress)
-}
-
-export function flightSteeringScale(remaining: number) {
-  const elapsed = GLIDE_DURATION - remaining
-  const landing = 1 - smoothstep((remaining - 0.3) / 0.65)
-  return 1.08 - 0.25 * smoothstep(elapsed / 0.85) - 0.27 * landing
 }
 
 export function playerHeight(

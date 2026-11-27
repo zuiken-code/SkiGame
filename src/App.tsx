@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { EditionPicker, ScoreList, OwnRank, type BoardState } from './components/Ranking/Ranking'
 import { Guide, Modal, ResultDialog, type Result } from './components/Dialogs/Dialogs'
 import type { RunControls } from './components/Game/GameScreen'
+import { ModePicker } from './components/Game/ModePicker'
 import type { GameEdition } from './game/edition'
 import type { RunEndReason } from './game/simulation'
 import { readProfile, writeProfile } from './services/profile'
@@ -12,9 +13,8 @@ const GameScreen = lazy(() => import('./components/Game/GameScreen'))
 const loadingBoard: BoardState = { data: null, loading: true, error: '' }
 
 export default function App() {
-  const [modal, setModal] = useState<'guide' | 'ranking' | null>(null)
-  const [edition, setEdition] = useState<GameEdition>('new')
-  const [rankingEdition, setRankingEdition] = useState<GameEdition>('new')
+  const [modal, setModal] = useState<'guide' | 'ranking' | 'modes' | null>(null)
+  const [rankingEdition, setRankingEdition] = useState<GameEdition>('classic')
   const [profile, setProfile] = useState(readProfile)
   const [boards, setBoards] = useState<Record<GameEdition, BoardState>>({
     new: loadingBoard,
@@ -24,7 +24,13 @@ export default function App() {
   const run = useRef<{ edition: GameEdition; id: Promise<string | null> } | null>(null)
   const controls = useRef<RunControls>(null)
   const requestVersions = useRef({ new: 0, classic: 0 })
-  const best = Math.max(profile.records[edition].best, boards[edition].data?.me?.distance ?? 0)
+  const bestByEdition = useMemo(
+    () => ({
+      classic: Math.max(profile.records.classic.best, boards.classic.data?.me?.distance ?? 0),
+      new: Math.max(profile.records.new.best, boards.new.data?.me?.distance ?? 0),
+    }),
+    [profile.records, boards],
+  )
 
   const refresh = useCallback(async (target: GameEdition) => {
     const version = ++requestVersions.current[target]
@@ -47,26 +53,23 @@ export default function App() {
     }
   }, [])
   useEffect(() => {
-    void refresh(edition)
-  }, [edition, refresh])
-  useEffect(() => {
     writeProfile(profile)
   }, [profile])
 
-  const onStart = useCallback(() => {
+  const onStart = useCallback((edition: GameEdition) => {
     run.current = { edition, id: startRun(edition).catch(() => null) }
     setResult(null)
     setModal(null)
-  }, [edition])
+  }, [])
   const onFinish = useCallback(
-    (rawDistance: number, eliminated: number, reason: RunEndReason) => {
+    (edition: GameEdition, rawDistance: number, eliminated: number, reason: RunEndReason) => {
       const distance = Math.floor(rawDistance)
       setResult({
         edition,
         distance,
         eliminated,
         reason,
-        newBest: distance > best,
+        newBest: distance > bestByEdition[edition],
       })
       setProfile((p) => ({
         ...p,
@@ -80,7 +83,7 @@ export default function App() {
         },
       }))
     },
-    [best, edition],
+    [bestByEdition],
   )
   async function register(name: string) {
     const active = run.current
@@ -103,6 +106,12 @@ export default function App() {
     void refresh(target)
   }
 
+  function chooseMode() {
+    setModal('modes')
+    void refresh('classic')
+    void refresh('new')
+  }
+
   return (
     <>
       <Suspense
@@ -115,25 +124,24 @@ export default function App() {
       >
         <GameScreen
           ref={controls}
-          edition={edition}
           soundEnabled={profile.sound}
-          best={best}
-          onEditionChange={() => setEdition((value) => (value === 'new' ? 'classic' : 'new'))}
+          onChooseMode={chooseMode}
           onStart={onStart}
           onFinish={onFinish}
           onGuide={() => setModal('guide')}
           onRanking={() => {
             setModal('ranking')
-            showRanking(edition)
+            showRanking(run.current?.edition ?? 'classic')
           }}
           onSound={() => setProfile((p) => ({ ...p, sound: !p.sound }))}
         />
       </Suspense>
-      {modal === 'guide' && (
-        <Guide
-          edition={edition}
-          close={() => setModal(null)}
-          start={() => controls.current?.start()}
+      {modal === 'guide' && <Guide close={() => setModal(null)} chooseMode={chooseMode} />}
+      {modal === 'modes' && (
+        <ModePicker
+          best={bestByEdition}
+          onClose={() => setModal(null)}
+          onSelect={(edition) => controls.current?.start(edition)}
         />
       )}
       {modal === 'ranking' && (
@@ -152,7 +160,7 @@ export default function App() {
           result={result}
           currentName={profile.name}
           submit={register}
-          replay={() => controls.current?.start()}
+          replay={() => controls.current?.start(result.edition)}
           home={() => {
             setResult(null)
             controls.current?.reset()

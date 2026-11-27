@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { COURSE_HALF_WIDTH, courseCenter, createGame, RIVAL_FALL_TIME, stepGame } from './simulation.ts'
+import {
+  COURSE_HALF_WIDTH,
+  RIVAL_FALL_TIME,
+  courseCenter,
+  createGame,
+  stepGame,
+} from './simulation.ts'
 import { readStick } from './joystick.ts'
-import { extendCourse } from './course.ts'
+import { FIRST_RAMP_DISTANCE, RAMP_MAX_GAP, RAMP_MIN_GAP, extendCourse } from './course.ts'
 import {
   BOOST_DURATION,
   BOOST_SPEED,
   GLIDE_DURATION,
   GLIDE_HEIGHT,
-  LANDING_PROTECTION_DURATION,
+  SKIER_CENTER_HEIGHT,
   RAMP_HALF_WIDTH,
   RAMP_HEIGHT,
   RAMP_LENGTH,
@@ -18,6 +24,12 @@ import {
 
 const neutral = { steer: 0, brake: 0 }
 const tick = 1 / 60
+const glideFrames = Math.round(GLIDE_DURATION / tick)
+
+test('the new edition starts at 100 km/h and the classic speed is unchanged', () => {
+  assert.equal(createGame(2).speed * 3.6, 100)
+  assert.equal(createGame(2, 'classic').speed, 21)
+})
 
 test('a seeded run has the same physics at different display refresh rates', () => {
   const slow = createGame(42)
@@ -52,6 +64,9 @@ test('a high glide responds to steering and braking while keeping the skier insi
   const neutralFlight = createGame(63)
   for (const state of [rightFlight, leftFlight, neutralFlight]) {
     state.enemies = []
+    state.nextEnemyAt = Infinity
+    state.nextRow = Infinity
+    state.nextRamp = Infinity
     state.features = [{ kind: 'ramp', x: 0, distance: 5, heading: 0 }]
     state.obstacles = [{ kind: 'rock', x: courseCenter(13), distance: 13, radius: 0.8, id: 1 }]
   }
@@ -61,7 +76,7 @@ test('a high glide responds to steering and braking while keeping the skier insi
     stepGame(neutralFlight, neutral, tick)
   }
   assert.equal(rightFlight.glideRemaining, GLIDE_DURATION)
-  for (let frame = 0; frame < 180; frame++) {
+  for (let frame = 0; frame < glideFrames; frame++) {
     stepGame(rightFlight, { steer: 1, brake: 0 }, tick)
     stepGame(leftFlight, { steer: -1, brake: 1 }, tick)
     stepGame(neutralFlight, neutral, tick)
@@ -70,7 +85,7 @@ test('a high glide responds to steering and braking while keeping the skier insi
       if (frame === 60 || frame === 120) {
         assert.equal(playerHeight(state.glideRemaining, state.x, state.distance, state.features), GLIDE_HEIGHT)
       }
-      if (frame === 179) {
+      if (frame === glideFrames - 1) {
         assert.equal(state.endReason, null)
         assert.equal(state.glideRemaining, 0)
         assert.equal(state.speed, state.baseSpeed)
@@ -83,12 +98,13 @@ test('a high glide responds to steering and braking while keeping the skier insi
   assert.ok(leftFlight.distance < rightFlight.distance)
 })
 
-test('the jump holds its takeoff speed through landing as steering becomes more precise', () => {
+test('the jump holds its takeoff speed for the longer airtime', () => {
   const takeOff = () => {
     const state = createGame(63)
     state.enemies = []
     state.obstacles = []
     state.nextRow = Infinity
+    state.nextRamp = Infinity
     state.nextEnemyAt = Infinity
     state.boostRemaining = 0.8
     state.features = [{ kind: 'ramp', x: 0, distance: 5, heading: 0 }]
@@ -98,33 +114,9 @@ test('the jump holds its takeoff speed through landing as steering becomes more 
     return state
   }
 
-  // Match a centered skier with one making the same small correction in each phase.
-  const sample = (elapsedFrames) => {
-    const centered = takeOff()
-    const steering = takeOff()
-    for (let frame = 0; frame < elapsedFrames; frame++) {
-      stepGame(centered, neutral, tick)
-      stepGame(steering, neutral, tick)
-    }
-    const before = centered.distance
-    for (let frame = 0; frame < 12; frame++) {
-      stepGame(centered, neutral, tick)
-      stepGame(steering, { steer: 0.5, brake: 0 }, tick)
-    }
-    return { downhill: centered.distance - before, across: steering.x - centered.x }
-  }
-
-  const launch = sample(0)
-  const glide = sample(72)
-  const landing = sample(168)
-  assert.ok(Math.abs(launch.downhill - glide.downhill) < 1e-9)
-  assert.ok(Math.abs(glide.downhill - landing.downhill) < 1e-9)
-  assert.ok(launch.across > glide.across)
-  assert.ok(landing.across > 0 && landing.across < glide.across * 0.7)
-
   const state = takeOff()
   const takeoffSpeed = state.speed
-  for (let frame = 0; frame < 180; frame++) {
+  for (let frame = 0; frame < glideFrames; frame++) {
     stepGame(state, neutral, tick)
     assert.equal(state.speed, takeoffSpeed)
   }
@@ -132,6 +124,25 @@ test('the jump holds its takeoff speed through landing as steering becomes more 
   assert.equal(state.glideRemaining, 0)
   stepGame(state, neutral, tick)
   assert.ok(state.speed < takeoffSpeed && takeoffSpeed - state.speed < 0.3)
+})
+
+test('air steering scales sideways motion in proportion to the faster downhill speed', () => {
+  for (const brake of [0, 1]) {
+    const ground = createGame(63)
+    const air = createGame(63)
+    const steer = { steer: 0.5, brake }
+    ground.enemies = []
+    air.enemies = []
+    air.glideRemaining = GLIDE_DURATION - 1
+    air.glideCruiseSpeed = ground.baseSpeed * 2
+    ground.baseSpeed *= 1 - 0.4 * brake
+    air.baseSpeed = ground.baseSpeed * 2
+
+    stepGame(ground, steer, tick)
+    stepGame(air, steer, tick)
+    assert.ok(air.lateralSpeed > ground.lateralSpeed)
+    assert.ok(Math.abs(air.lateralSpeed / air.speed - ground.lateralSpeed / ground.speed) < 1e-9)
+  }
 })
 
 test('the ramp only launches a skier crossing the rotated lip within its width', () => {
@@ -150,16 +161,81 @@ test('the ramp only launches a skier crossing the rotated lip within its width',
   assert.equal(playerHeight(0, ...point(outside, -RAMP_LENGTH / 2), [ramp]), 0)
 })
 
-test('the opening course offers the boost before the first jump ramp', () => {
+test('the opening course puts the first ramp after the boost and separates later ramps', () => {
   const game = createGame(2)
-  const [boost, ramp] = game.features
-  assert.equal(boost.kind, 'boost')
+  const [boost] = game.features
+  assert.equal(boost?.kind, 'boost')
+  const ramps = new Set()
+  for (let distance = 0; distance < 18_000; distance += 20) {
+    extendCourse(game, distance)
+    for (const feature of game.features) {
+      if (feature.kind === 'ramp') ramps.add(feature)
+    }
+  }
+  const [ramp] = ramps
   assert.equal(ramp.kind, 'ramp')
-  while (game.distance < ramp.distance + 1 && !game.endReason) stepGame(game, neutral, tick)
-  assert.equal(game.endReason, null)
-  assert.ok(game.glideRemaining > 0 && game.boostRemaining > 0)
+  assert.equal(ramp.distance, FIRST_RAMP_DISTANCE)
+  assert.ok(ramp.distance > boost.distance)
   assert.equal(ramp.heading, Math.atan2(courseCenter(ramp.distance) - courseCenter(ramp.distance - RAMP_LENGTH), RAMP_LENGTH))
-  assert.ok(!game.features.includes(boost))
+  assert.ok(ramps.size >= 6)
+  let previous = ramp
+  for (const next of [...ramps].slice(1)) {
+    const gap = next.distance - previous.distance
+    assert.ok(gap >= RAMP_MIN_GAP && gap <= RAMP_MAX_GAP)
+    previous = next
+  }
+})
+
+test('a pigeon ends a jump on contact but can be steered around', () => {
+  const straight = createGame(4)
+  const dodging = createGame(4)
+  for (const game of [straight, dodging]) {
+    while (game.glideRemaining === 0 && game.distance < FIRST_RAMP_DISTANCE + 1 && !game.endReason) {
+      stepGame(game, neutral, tick)
+    }
+    assert.equal(game.endReason, null)
+    assert.equal(game.glideRemaining, GLIDE_DURATION)
+  }
+  const firstFlock = straight.pigeons[0].distance
+  for (let frame = 0; frame < 26; frame++) {
+    stepGame(dodging, { steer: 1, brake: 0 }, tick)
+  }
+  for (const game of [straight, dodging]) {
+    while (!game.endReason && game.distance < firstFlock + 3) stepGame(game, neutral, tick)
+  }
+  assert.equal(straight.endReason, 'bird')
+  assert.ok(dodging.glideRemaining > 0)
+  assert.equal(dodging.endReason, null)
+})
+
+test('a straight line can finish a 20-second flight and flocks cover its route', () => {
+  const game = createGame(254)
+  while (game.glideRemaining === 0 && game.distance < FIRST_RAMP_DISTANCE + 1 && !game.endReason) {
+    stepGame(game, neutral, tick)
+  }
+  assert.equal(game.glideRemaining, 20)
+  assert.ok(game.pigeons.at(-1).distance > FIRST_RAMP_DISTANCE + 1250)
+  for (let frame = 0; frame < glideFrames; frame++) stepGame(game, neutral, tick)
+  assert.equal(game.glideRemaining, 0)
+  assert.equal(game.endReason, null)
+})
+
+test('pigeons only collide with a skier at flight height', () => {
+  const ground = createGame(2)
+  const air = createGame(2)
+  const lowBird = { id: 1, x: 0, distance: 0.35, height: SKIER_CENTER_HEIGHT }
+  ground.enemies = []
+  air.enemies = []
+  ground.pigeons = [lowBird]
+  air.pigeons = [lowBird]
+  air.glideRemaining = GLIDE_DURATION - 1
+  air.glideCruiseSpeed = 40
+  air.baseSpeed = 40
+
+  stepGame(ground, neutral, tick)
+  stepGame(air, neutral, tick)
+  assert.equal(ground.endReason, null)
+  assert.equal(air.endReason, null)
 })
 
 test('the classic edition keeps the obstacle course without boost pickups or ramps', () => {
@@ -169,6 +245,7 @@ test('the classic edition keeps the obstacle course without boost pickups or ram
     extendCourse(classic, distance)
     extendCourse(modern, distance)
     assert.deepEqual(classic.features, [])
+    assert.deepEqual(classic.pigeons, [])
     assert.deepEqual(classic.obstacles, modern.obstacles)
   }
 })
@@ -189,7 +266,7 @@ test('hitting a rock or tree ends the run on the collision tick and freezes the 
   }
 })
 
-test('obstacle collisions are ignored in flight and for exactly one second after landing', () => {
+test('obstacles can end the run on the first touchdown tick', () => {
   const game = createGame(12)
   game.enemies = []
   game.glideRemaining = 2 * tick
@@ -207,21 +284,15 @@ test('obstacle collisions are ignored in flight and for exactly one second after
   assert.equal(game.endReason, null)
   collide()
   assert.equal(game.glideRemaining, 0)
-  assert.equal(game.landingProtectionRemaining, LANDING_PROTECTION_DURATION)
-  assert.equal(game.endReason, null)
-  for (let frame = 0; frame < 59; frame++) collide()
-  assert.ok(game.landingProtectionRemaining > 0)
-  assert.equal(game.endReason, null)
-  collide()
-  assert.equal(game.landingProtectionRemaining, 0)
   assert.equal(game.endReason, 'obstacle')
 })
 
-test('a committed grab cannot catch the skier until landing protection ends', () => {
+test('a committed grab can catch the skier immediately on touchdown', () => {
   const game = createGame(7)
   const [rival] = game.enemies
   game.enemies = [rival]
-  game.landingProtectionRemaining = 2 * tick
+  game.glideRemaining = 2 * tick
+  game.glideCruiseSpeed = game.speed
   rival.reachTimer = 0.6
   rival.reachX = 0
   rival.reachDownhill = 1
@@ -295,6 +366,8 @@ test('passing close to a rival outside the reach of its gloves is safe', () => {
 
 test('a reaching rival can be tripped from behind and stops until it recovers', () => {
   const game = createGame(71)
+  game.obstacles = []
+  game.nextRow = Infinity
   const [rival] = game.enemies
   rival.x = -0.25
   rival.distance = -3.5
@@ -311,10 +384,12 @@ test('a reaching rival can be tripped from behind and stops until it recovers', 
   const fallDistance = rival.distance
   const fallX = rival.x
   game.enemies = [rival]
-  for (let frame = 0; frame < 100; frame++) stepGame(game, neutral, tick)
+  // Stay close enough to observe the recovery now that initial downhill speed is higher.
+  const brake = { steer: 0, brake: 1 }
+  for (let frame = 0; frame < 100; frame++) stepGame(game, brake, tick)
   assert.equal(rival.distance, fallDistance)
   assert.equal(rival.x, fallX)
-  for (let frame = 0; frame < 12; frame++) stepGame(game, neutral, tick)
+  for (let frame = 0; frame < 12; frame++) stepGame(game, brake, tick)
   assert.ok(rival.distance > fallDistance)
 })
 
@@ -398,7 +473,7 @@ test('steering across the course and riding the boundary keep downhill speed', (
 })
 
 test('repeated reactions to reaching rivals can trip several in a single run', () => {
-  const game = createGame(5)
+  const game = createGame(8)
   game.features = []
   game.nextBoost = game.nextRamp = Infinity
   let turn = 0
@@ -426,17 +501,17 @@ test('repeated reactions to reaching rivals can trip several in a single run', (
 })
 
 test('aiming at obstacles and turning away late can eliminate successive pursuers', () => {
-  const state = createGame(11)
+  const state = createGame(8)
   state.features = []
   state.nextBoost = state.nextRamp = Infinity
   while (!state.endReason && state.distance < 600) {
     const obstacle = state.obstacles.find(
-      (item) => item.distance > state.distance - 1.4 && item.distance < state.distance + 21,
+      (item) => item.distance > state.distance - 1.4 && item.distance < state.distance + 27,
     )
     let offset = 0
     if (obstacle) {
       offset = obstacle.x - courseCenter(obstacle.distance)
-      if (obstacle.distance - state.distance < 10) offset += offset < 0 ? 2.1 : -2.1
+      if (obstacle.distance - state.distance < 13) offset += offset < 0 ? 2.1 : -2.1
     }
     const target = courseCenter(state.distance) + offset
     stepGame(state, { steer: (target - state.x) * 0.72, brake: 0 }, tick)

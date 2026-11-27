@@ -1,4 +1,10 @@
-import { COURSE_HALF_WIDTH, courseCenter, createCourse, extendCourse } from './course.ts'
+import {
+  COURSE_HALF_WIDTH,
+  MAX_GROUND_SPEED,
+  courseCenter,
+  createCourse,
+  extendCourse,
+} from './course.ts'
 import type { Course, Obstacle } from './course.ts'
 import type { GameEdition } from './edition.ts'
 import {
@@ -7,15 +13,17 @@ import {
   BOOST_SPEED,
   GLIDE_DURATION,
   GLIDE_LAUNCH_SPEED_SCALE,
-  LANDING_PROTECTION_DURATION,
+  PIGEON_RADIUS,
+  SKIER_CENTER_HEIGHT,
   crossesRampLip,
-  flightSteeringScale,
+  pigeonPosition,
+  playerHeight,
 } from './features.ts'
 import { REACH_RANGE, REACH_TIME, touchesGlove } from './reach.ts'
 
 export { COURSE_HALF_WIDTH, courseCenter }
 export type { Obstacle }
-export type RunEndReason = 'caught' | 'obstacle'
+export type RunEndReason = 'caught' | 'obstacle' | 'bird'
 
 export interface GameInput {
   steer: number
@@ -44,7 +52,6 @@ export interface GameState extends Course {
   boostRemaining: number
   glideRemaining: number
   glideCruiseSpeed: number
-  landingProtectionRemaining: number
   lean: number
   elapsed: number
   eliminated: number
@@ -63,7 +70,7 @@ const tick = 1 / 60
 const playerRadius = 0.34
 const enemyRadius = 0.36
 const edge = COURSE_HALF_WIDTH - playerRadius
-const startSpeed = 21
+const startSpeeds: Record<GameEdition, number> = { classic: 21, new: 100 / 3.6 }
 export const RIVAL_FALL_TIME = 1.8
 
 function clamp(value: number, low: number, high: number): number {
@@ -102,6 +109,7 @@ export function createGame(
   edition: GameEdition = 'new',
 ): GameState {
   const course = createCourse(seededRandom(seed), seededRandom(seed ^ 0x7f4a7c15), edition)
+  const startSpeed = startSpeeds[edition]
   const state: GameState = {
     ...course,
     distance: 0,
@@ -111,7 +119,6 @@ export function createGame(
     boostRemaining: 0,
     glideRemaining: 0,
     glideCruiseSpeed: 0,
-    landingProtectionRemaining: 0,
     lean: 0,
     elapsed: 0,
     eliminated: 0,
@@ -165,8 +172,37 @@ function downhillSpeed(state: GameState) {
   return state.baseSpeed + boost
 }
 
-export function isInvulnerable(state: GameState) {
-  return state.glideRemaining > 0 || state.landingProtectionRemaining > 0
+function hitsPigeon(
+  state: GameState,
+  previousX: number,
+  previousDistance: number,
+  flightBefore: number,
+) {
+  const previousHeight = playerHeight(flightBefore, previousX, previousDistance, state.features)
+  const height = playerHeight(state.glideRemaining, state.x, state.distance, state.features)
+  const distanceDelta = state.distance - previousDistance
+  const radius = PIGEON_RADIUS + playerRadius
+
+  return state.pigeons.some((pigeon) => {
+    if (pigeon.distance < previousDistance - radius || pigeon.distance > state.distance + radius)
+      return false
+
+    const before = pigeonPosition(pigeon, state.elapsed - tick)
+    const after = pigeonPosition(pigeon, state.elapsed)
+    const x = previousX - before.x
+    const y = previousHeight + SKIER_CENTER_HEIGHT - before.height
+    const z = previousDistance - pigeon.distance
+    const dx = state.x - after.x - x
+    const dy = height + SKIER_CENTER_HEIGHT - after.height - y
+    const span = dx * dx + dy * dy + distanceDelta * distanceDelta
+
+    // Sweep the player's chest past the moving pigeon to catch contact between fixed ticks.
+    const fraction = span > 0 ? clamp(-(x * dx + y * dy + z * distanceDelta) / span, 0, 1) : 0
+    return (
+      (x + dx * fraction) ** 2 + (y + dy * fraction) ** 2 + (z + distanceDelta * fraction) ** 2 <=
+      radius ** 2
+    )
+  })
 }
 
 function movePlayer(state: GameState, input: GameInput, cruise: number) {
@@ -190,16 +226,12 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   const newCenter = courseCenter(state.distance)
   state.boostRemaining = Math.max(0, state.boostRemaining - tick)
   state.glideRemaining = state.glideRemaining > tick + 1e-9 ? state.glideRemaining - tick : 0
-  if (wasGliding && state.glideRemaining === 0) {
-    state.landingProtectionRemaining = LANDING_PROTECTION_DURATION
-  } else {
-    const remaining = state.landingProtectionRemaining
-    state.landingProtectionRemaining = remaining > tick + 1e-9 ? remaining - tick : 0
-  }
 
-  const steeringSpeed = wasGliding ? cruise * brakeScale : state.baseSpeed
-  const turnSpeed = 10.6 + Math.min(23, steeringSpeed * (23 / 32)) * 0.09
-  const turnScale = wasGliding ? flightSteeringScale(flightBefore) : 1
+  // Scale the ground response by the same multiplier as downhill motion. Derive
+  // the ground equivalent from current speed so both ratios also match under braking.
+  const turnScale = wasGliding ? state.glideCruiseSpeed / cruise : 1
+  const groundSpeed = state.baseSpeed / turnScale
+  const turnSpeed = 10.6 + Math.min(23, groundSpeed * (23 / 32)) * 0.09
   state.lateralSpeed += (steer * turnSpeed * turnScale - state.lateralSpeed) * (tick * 8)
   // The skier follows part of the bend; the player steers the rest.
   state.x += state.lateralSpeed * tick + (newCenter - center) * 0.46
@@ -208,7 +240,12 @@ function movePlayer(state: GameState, input: GameInput, cruise: number) {
   if (!wasGliding) useCourseFeatures(state, previousX, previousDistance, cruise)
   state.speed = downhillSpeed(state)
   if (
-    !isInvulnerable(state) &&
+    (wasGliding || state.glideRemaining > 0) &&
+    hitsPigeon(state, previousX, previousDistance, flightBefore)
+  ) {
+    state.endReason = 'bird'
+  } else if (
+    state.glideRemaining === 0 &&
     state.obstacles.some((obstacle) => hits(state.x, state.distance, playerRadius, obstacle))
   ) {
     state.endReason = 'obstacle'
@@ -222,7 +259,7 @@ function moveEnemies(
   distanceBefore: number,
 ) {
   const playerOffset = state.x - courseCenter(state.distance)
-  const vulnerable = !isInvulnerable(state)
+  const vulnerable = state.glideRemaining === 0
   for (let index = state.enemies.length - 1; index >= 0; index--) {
     const enemy = state.enemies[index]
     if (enemy.distance < state.distance - 52) {
@@ -308,7 +345,8 @@ function moveEnemies(
 
 function advance(state: GameState, input: GameInput) {
   state.elapsed += tick
-  const cruise = startSpeed + 11 * Math.min(1, state.distance / 1500)
+  const startSpeed = startSpeeds[state.edition]
+  const cruise = startSpeed + (MAX_GROUND_SPEED - startSpeed) * Math.min(1, state.distance / 1500)
   const playerXBefore = state.x
   const distanceBefore = state.distance
   movePlayer(state, input, cruise)

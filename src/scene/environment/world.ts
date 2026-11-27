@@ -3,7 +3,6 @@ import {
   COURSE_HALF_WIDTH,
   RIVAL_FALL_TIME,
   courseCenter,
-  isInvulnerable,
   type GameState,
 } from '../../game/simulation'
 import {
@@ -15,10 +14,10 @@ import {
 } from '../models/courseObjects'
 import { noise } from '../models/geometry'
 import { createBoostToken, createJumpRamp } from '../models/courseFeatures'
-import { createProtectionBarrier } from '../models/protectionBarrier'
+import { createPigeonBody, createPigeonCue, createPigeonWing } from '../models/pigeon'
 import { createReachArms, createSkier } from '../models/skier'
 import { RIVAL_SCALE, armExtension } from '../../game/reach'
-import { GLIDE_DURATION, playerHeight, smoothstep } from '../../game/features'
+import { GLIDE_DURATION, PIGEON_SCALE, pigeonPosition, playerHeight, smoothstep } from '../../game/features'
 import { Instances } from './instances'
 import { createPiste } from './piste'
 import { createTracks } from './tracks'
@@ -98,6 +97,15 @@ export function createWorld() {
   const rocks = new Instances(createRock(), colorMaterial, 64)
   const boostTokens = new Instances(createBoostToken(), colorMaterial, 8)
   const ramps = new Instances(createJumpRamp(), colorMaterial, 8)
+  const pigeons = new Instances(createPigeonBody(), colorMaterial, 32)
+  const pigeonLeftWings = new Instances(createPigeonWing(-1), colorMaterial, 32)
+  const pigeonRightWings = new Instances(createPigeonWing(1), colorMaterial, 32)
+  const pigeonCues = new Instances(
+    createPigeonCue(),
+    new THREE.MeshBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false }),
+    12,
+  )
+  pigeonCues.mesh.renderOrder = 1
   const poles = new Instances(createCoursePole(), colorMaterial, 52)
   const nets = new Instances(createNetPanel(), colorMaterial, 40)
   const forestShadows = new Instances(shadowShape, shadowMaterial, 135)
@@ -107,20 +115,22 @@ export function createWorld() {
   const grabbingTorso = new Instances(createSkier(true, 'torso'), colorMaterial, 16)
   const grabbingArms = new Instances(createReachArms(), colorMaterial, 16)
   const skier = new THREE.Mesh(createSkier(), colorMaterial)
-  const protectionBarrier = createProtectionBarrier()
   scenery.add(forest.mesh, poles.mesh, nets.mesh, forestShadows.mesh)
   group.add(
     coursePines.mesh,
     rocks.mesh,
     boostTokens.mesh,
     ramps.mesh,
+    pigeons.mesh,
+    pigeonLeftWings.mesh,
+    pigeonRightWings.mesh,
+    pigeonCues.mesh,
     actionShadows.mesh,
     rivals.mesh,
     grabbingSkis.mesh,
     grabbingTorso.mesh,
     grabbingArms.mesh,
     skier,
-    protectionBarrier,
   )
   const lookAt = new THREE.Vector3()
   let anchor = Infinity
@@ -223,6 +233,30 @@ export function createWorld() {
     }
     boostTokens.finish()
     ramps.finish()
+    let cueDistance = Infinity
+    for (const pigeon of state.pigeons) {
+      const z = state.distance - pigeon.distance
+      if (z < -140 || z > 22) continue
+      const { x, height } = pigeonPosition(pigeon, state.elapsed)
+      const phase = state.elapsed * 22 + noise(pigeon.id) * Math.PI * 2
+      const flap = 0.08 + Math.sin(phase) * 0.64
+      const yaw = Math.PI + (noise(pigeon.id + 179) - 0.5) * 0.84
+      const bank = Math.sin(phase * 0.17) * 0.12
+      const size = PIGEON_SCALE
+      pigeons.place(x, height, z, size, size, size, yaw, bank)
+      pigeonLeftWings.place(x, height, z, size, size, size, yaw, bank - flap)
+      pigeonRightWings.place(x, height, z, size, size, size, yaw, bank + flap)
+      const flightTimeAtRow = state.glideRemaining + z / state.speed
+      if (flightTimeAtRow > 0.65 && z <= 0 && z > -68 && pigeon.distance <= cueDistance) {
+        cueDistance = pigeon.distance
+        pigeonCues.place(x, height + 0.9 * size, z, 0.8 * size)
+      }
+      actionShadows.place(x + 0.21, 0.065, z + 0.17, 0.75 * size, 1, 0.41 * size)
+    }
+    pigeons.finish()
+    pigeonLeftWings.finish()
+    pigeonRightWings.finish()
+    pigeonCues.finish()
     for (const rival of state.enemies) {
       const z = state.distance - rival.distance
       if (z > 22) continue
@@ -280,11 +314,6 @@ export function createWorld() {
     skier.position.set(state.x, 0.055 + rise, 0)
     skier.scale.setScalar(0.78)
     skier.rotation.set(glidePitch, -state.lean * 0.43, -state.lean * 0.28, 'YXZ')
-    protectionBarrier.visible = isInvulnerable(state)
-    if (protectionBarrier.visible) {
-      protectionBarrier.position.set(state.x, 0.8 + rise, 0)
-      protectionBarrier.material.uniforms.time.value = state.elapsed
-    }
     actionShadows.place(state.x + 0.2, 0.065, 0.23, 0.4, 1, 0.78, -0.28 - state.lean * 0.21)
     actionShadows.finish()
 

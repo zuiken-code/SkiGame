@@ -1,0 +1,150 @@
+.mode-picker {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 3px;
+}
+
+.mode-picker-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(8px, 3vw, 13px);
+  min-height: 92px;
+  width: 100%;
+  padding: 13px clamp(10px, 3vw, 16px);
+  color: var(--ink);
+  text-align: left;
+  background: var(--mode-background);
+  border: 1px solid var(--mode-border);
+  border-radius: 13px;
+  box-shadow: 0 3px var(--mode-border);
+}
+
+.mode-picker-classic {
+  --mode-background: #e7f4fc;
+  --mode-hover: #d6edfa;
+  --mode-border: #99bcd3;
+  --mode-icon: #356c92;
+  --mode-icon-background: #d2eafa;
+}
+
+@media (hover: hover) {
+  .mode-picker-option:hover {
+    background: var(--mode-hover);
+  }
+}
+
+.mode-picker-option:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px var(--mode-border);
+}
+
+.mode-picker-icon {
+  display: grid;
+  place-items: center;
+  width: clamp(34px, 11vw, 43px);
+  aspect-ratio: 1;
+  color: var(--mode-icon);
+  background: var(--mode-icon-background);
+  border-radius: 10px;
+}
+
+.mode-picker-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.mode-picker-name {
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.mode-picker-description {
+  color: #365571;
+  font-size: 0.81rem;
+  line-height: 1.5;
+}
+
+.mode-picker-best {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.73rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-picker-chevron {
+  color: var(--mode-icon);
+}
+
+.mode-picker-new {
+  --mode-background:
+    linear-gradient(128deg, #ff6cdb 0 3%, transparent 3% 86%, #4cffe5 86% 88%, #fa55df 88% 93%, #8c22b6 93%),
+    repeating-linear-gradient(128deg, #ff9dfa40 0 1px, transparent 1px 8px) right / 33% 100% no-repeat,
+    radial-gradient(ellipse at 5% 90%, #772bd6 0%, transparent 58%),
+    linear-gradient(115deg, #451186, #250d53 55%, #6121a4);
+  --mode-hover: var(--mode-background);
+  --mode-border: #d451ff;
+  --mode-icon: #3c126a;
+  --mode-icon-background: repeating-conic-gradient(from -16deg, #fff77e 0 13deg, #ffe14a 13deg 25deg);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 108px;
+  color: #fff6ff;
+  border-width: 2px;
+  box-shadow: 0 3px #6b20a1, 0 6px 13px #941dc340, inset 0 0 0 1px #ffffff3b;
+}
+
+.mode-picker-new::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(110deg, transparent 40%, #fcecff26 47%, #fcecff53 50%, transparent 58%);
+  transform: translateX(105%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mode-picker-new::before {
+    animation: mode-picker-sheen 0.9s ease-out both;
+  }
+}
+
+@keyframes mode-picker-sheen {
+  from { transform: translateX(-105%); }
+  to { transform: translateX(105%); }
+}
+
+.mode-picker-new .mode-picker-icon {
+  border: 2px solid #fff7c7;
+  box-shadow: 0 0 0 2px #6429b0, 3px 3px #f950d5, 0 0 15px #ff68dc9c;
+  transform: rotate(-9deg);
+}
+
+.mode-picker-new .mode-picker-icon svg {
+  fill: currentColor;
+  filter: drop-shadow(1px 2px 0 #fffabb);
+}
+
+.mode-picker-new .mode-picker-name {
+  color: #fff574;
+  text-shadow: 0 2px #501c8f, 0 0 10px #f24cfa82;
+}
+
+.mode-picker-new .mode-picker-description {
+  color: #fff6ff;
+  text-shadow: 0 1px 2px #250c54;
+}
+
+.mode-picker-new .mode-picker-best {
+  color: #94fff4;
+}
+
+.mode-picker-new .mode-picker-chevron {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px #340768);
+}

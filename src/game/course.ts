@@ -1,7 +1,20 @@
-import { RAMP_HALF_WIDTH, RAMP_LENGTH, rampCoordinates, type CourseFeature, type JumpRamp } from './features.ts'
+import {
+  BOOST_SPEED,
+  GLIDE_DURATION,
+  GLIDE_HEIGHT,
+  GLIDE_LAUNCH_SPEED_SCALE,
+  RAMP_HALF_WIDTH,
+  RAMP_LENGTH,
+  SKIER_CENTER_HEIGHT,
+  rampCoordinates,
+  type CourseFeature,
+  type JumpRamp,
+  type Pigeon,
+} from './features.ts'
 import type { GameEdition } from './edition.ts'
 
 export const COURSE_HALF_WIDTH = 10
+export const MAX_GROUND_SPEED = 32
 
 export interface Obstacle {
   id: number
@@ -48,10 +61,12 @@ export interface Course {
   edition: GameEdition
   obstacles: Obstacle[]
   features: CourseFeature[]
+  pigeons: Pigeon[]
   nextRow: number
   nextBoost: number
   nextRamp: number
   nextObstacleId: number
+  nextPigeonId: number
   openLane: number
   random: () => number
   featureRandom: () => number
@@ -68,17 +83,21 @@ function addObstacle(course: Course, distance: number, offset: number, kind: Obs
 }
 
 const firstBoost = 55
-const firstRamp = 104
+export const FIRST_RAMP_DISTANCE = 210
+export const RAMP_MIN_GAP = 2250
+export const RAMP_MAX_GAP = 3200
 
 export function createCourse(random: () => number, featureRandom: () => number, edition: GameEdition): Course {
   const course: Course = {
     edition,
     obstacles: [],
     features: [],
+    pigeons: [],
     nextRow: 49,
     nextBoost: firstBoost,
-    nextRamp: firstRamp,
+    nextRamp: FIRST_RAMP_DISTANCE,
     nextObstacleId: 1,
+    nextPigeonId: 1,
     openLane: 0,
     random,
     featureRandom,
@@ -113,22 +132,23 @@ export function extendCourse(course: Course, playerDistance: number) {
 }
 
 function extendFeatures(course: Course, playerDistance: number) {
-  const { features, featureRandom, obstacles } = course
+  const { features, featureRandom, obstacles, pigeons } = course
   while (features.length > 0 && features[0].distance < playerDistance - 20) features.shift()
+  while (pigeons.length > 0 && pigeons[0].distance < playerDistance - 20) pigeons.shift()
   // Obstacles are generated farther ahead so we can check each feature's approach.
   while (Math.min(course.nextBoost, course.nextRamp) < playerDistance + 130) {
     const boost = course.nextBoost < course.nextRamp
     const distance = boost ? course.nextBoost : course.nextRamp
     if (boost) course.nextBoost += 76 + featureRandom() * 52
-    else course.nextRamp += 218 + featureRandom() * 106
+    else course.nextRamp += RAMP_MIN_GAP + featureRandom() * (RAMP_MAX_GAP - RAMP_MIN_GAP)
 
     const offsets = lanes.map((lane) => lane * laneWidth)
-    const openingRampOffset = -8.15
-    if (distance === firstRamp) offsets.push(openingRampOffset)
+    const openingRampOffset = -1.5
+    if (distance === FIRST_RAMP_DISTANCE) offsets.push(openingRampOffset)
     const preferred =
       distance === firstBoost
         ? -5.1
-        : distance === firstRamp
+        : distance === FIRST_RAMP_DISTANCE
           ? openingRampOffset
           : offsets[Math.floor(featureRandom() * offsets.length)]
     offsets.sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred))
@@ -149,8 +169,29 @@ function extendFeatures(course: Course, playerDistance: number) {
       const ramp: JumpRamp = { kind: 'ramp', x: center + offset, distance, heading }
       if (rampFitsCourse(ramp, obstacles)) {
         features.push(ramp)
+        addPigeonFlocks(course, ramp)
         break
       }
+    }
+  }
+}
+
+function addPigeonFlocks(course: Course, ramp: JumpRamp) {
+  const { featureRandom, pigeons } = course
+  const flightReach = GLIDE_DURATION * (MAX_GROUND_SPEED * GLIDE_LAUNCH_SPEED_SCALE + BOOST_SPEED)
+  // Leave takeoff clear and cover the full route even at maximum launch speed.
+  for (let gap = 65; gap < flightReach; gap += 66 + featureRandom() * 19) {
+    const distance = ramp.distance + gap
+    const offsets = [-8.7, -4.25, 0, 4.25, 8.7]
+    const count = ramp.distance > FIRST_RAMP_DISTANCE && featureRandom() < 0.55 ? 3 : 2
+    for (let index = 0; index < count; index++) {
+      const [offset] = offsets.splice(Math.floor(featureRandom() * offsets.length), 1)
+      pigeons.push({
+        id: course.nextPigeonId++,
+        x: courseCenter(distance) + offset,
+        distance,
+        height: GLIDE_HEIGHT + SKIER_CENTER_HEIGHT + (featureRandom() - 0.5) * 0.7,
+      })
     }
   }
 }

@@ -16,8 +16,8 @@ export function EditionPicker({
   onChange: (edition: GameEdition) => void
 }) {
   return (
-    <div className="rank-editions" role="group" aria-label="ランキングのバージョン">
-      {(['new', 'classic'] as const).map((option) => (
+    <div className="rank-editions" role="group" aria-label="ランキングのモード">
+      {(['classic', 'new'] as const).map((option) => (
         <button
           key={option}
           type="button"

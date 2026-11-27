@@ -58,15 +58,7 @@ export function Modal({
   )
 }
 
-export function Guide({
-  edition,
-  close,
-  start,
-}: {
-  edition: GameEdition
-  close: () => void
-  start: () => void
-}) {
+export function Guide({ close, chooseMode }: { close: () => void; chooseMode: () => void }) {
   return (
     <Modal title="遊び方" onClose={close}>
       <p className="modal-lead">スキーは自動で前へ。指一本で進路と速度を調整しよう。</p>
@@ -101,32 +93,31 @@ export function Guide({
             <span>指を離すと通常速度に戻ります。</span>
           </p>
         </div>
-        {edition === 'new' && (
-          <>
-            <div>
-              <Zap />
-              <p>
-                <strong>金色のアイテムを取って加速</strong>
-                <span>アイテムの上を通ると約2.6秒間スピードが上がります。</span>
-              </p>
-            </div>
-            <div>
-              <ArrowUp />
-              <p>
-                <strong>水色のジャンプ台で滑空</strong>
-                <span>滑空中と着地後1秒は無敵です。バリアが出ている間は障害物や追手をすり抜けられます。</span>
-              </p>
-            </div>
-          </>
-        )}
+      </div>
+      <h3 className="guide-mode-heading">{editionNames.new}のルール</h3>
+      <div className="guide-rows">
+        <div>
+          <Zap />
+          <p>
+            <strong>金色のアイテムを取って加速</strong>
+            <span>アイテムの上を通ると約2.6秒間スピードが上がります。</span>
+          </p>
+        </div>
+        <div>
+          <ArrowUp />
+          <p>
+            <strong>水色のジャンプ台で滑空</strong>
+            <span>約20秒間、上空の鳩を左右に避けよう。鳩に当たると滑走終了です。</span>
+          </p>
+        </div>
       </div>
       <p className="keyboard-note">
         <Gamepad2 size={16} />
         キーボードでは ← → でターン、↓ で減速。
       </p>
-      <button className="btn btn-primary full" onClick={start}>
+      <button className="btn btn-primary full" onClick={chooseMode}>
         <Play size={16} fill="currentColor" />
-        滑走スタート
+        モードを選ぶ
       </button>
     </Modal>
   )
@@ -146,6 +137,12 @@ interface ResultProps {
   submit: (name: string) => Promise<number>
   replay: () => void
   home: () => void
+}
+
+const resultTitles: Record<RunEndReason, string> = {
+  obstacle: '障害物にぶつかった！',
+  caught: '追手に捕まった！',
+  bird: '鳩にぶつかった！',
 }
 
 export function ResultDialog({ result, currentName, submit, replay, home }: ResultProps) {
@@ -192,7 +189,7 @@ export function ResultDialog({ result, currentName, submit, replay, home }: Resu
     }
   }
   return (
-    <Modal title={result.reason === 'obstacle' ? '障害物にぶつかった！' : '追手に捕まった！'}>
+    <Modal title={resultTitles[result.reason]}>
       <div className="result-score">
         <div>
           <MapPin size={13} />

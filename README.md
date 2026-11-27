@@ -16,13 +16,13 @@ npm.cmd run play
 1. `play` がローカル D1 にマイグレーションを適用し、型チェックとビルドを行い、Wrangler を **0.0.0.0:8788** で起動します。
 2. PC とスマホを同じ Wi-Fi に接続します。PC で `ipconfig` を実行し、Wi-Fi アダプターの IPv4 アドレスを確認します。
 3. たとえばアドレスが `192.168.1.20` なら、スマホで `http://192.168.1.20:8788` を開きます。PC からは `http://localhost:8788` を開けます。
-4. コースをタップして開始し、終了画面で名前を入力して「登録」を押します。別のスマホでも同じ PC の URL を開くと、同じランキングに記録できます。「結果を共有」からは滑走距離とゲームの URL を共有・コピーできます。LAN の URL は同じネットワーク内で開けます。
+4. 「タップしてスタート」を押し、モードを選んで滑走します。終了画面で名前を入力して「登録」を押すと、同じモードのランキングに記録されます。「結果を共有」からは滑走距離とゲームの URL を共有・コピーできます。LAN の URL は同じネットワーク内で開けます。
 
 起動したターミナルでは `Ctrl+C` で停止できます。再起動後もローカル D1 の記録は `.wrangler/state/` に残ります。PC では開けてスマホで開けない場合は、Wi-Fi の端末間通信、Windows ファイアウォールのプライベートネットワークでの許可、Wi-Fi 側の IPv4 を選んでいるかを確認してください。
 
 ### 操作
 
-起動時は新版です。スタート画面左上の「旧版に切り替え」で以前のコースに切り替えられます。「新版に戻す」で加速アイテムとジャンプ台のあるコースに戻れます。
+タイトル画面をタップして「ノーマル」か「スーパードパガキ」を選びます。ノーマルは追手と地上の障害物を避けるコースです。スーパードパガキでは加速アイテムとジャンプ台も出ます。「もう一回滑る」で同じモードを再プレイできます。
 
 | 操作 | スマホ | キーボード |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ npm.cmd run play
 
 後ろや横の追手が約3.8m以内に近づくと、こちらに両手を伸ばします。手が届く前に急ターンでかわすとすぐに転び、つかみ損ねたときも動作の終わりに転びます。転倒すると約1.8秒間止まります。コース端まで横移動しても前進速度を保ちます。
 
-金色のアイテムを拾うと約2.6秒間加速します。水色のジャンプ台を踏むと勢いよく高さ約10mまで飛び上がり、飛び出したときの前進速度を保って約3秒間滑空します。空中でもジョイスティックで左右移動と減速ができ、コースの端で止まります。滑空中と着地後1秒は障害物や追手に当たっても無敵です。スキーヤーを包むバリアと画面の「無敵」表示で効果を確認できます。最初のアイテムは約55m、最初のジャンプ台は約104m付近です。以降はコースにランダムな間隔で現れます。
+スーパードパガキは100km/hで滑り始めます。金色のアイテムを拾うと約2.6秒間加速します。水色のジャンプ台を踏むと高さ約10mまで上がり、約20秒間高速で滑空します。空中では前進速度に合わせて左右移動も速くなり、地上と同じジョイスティックで鳩を避けながら進みます。鳩に当たると滑走終了です。着地直後から地上の障害物に注意してください。最初のジャンプ台は約210m、以降の設置候補は2,250〜3,200m間隔です。
 
 ### コードを変えながら試す
 
@@ -56,7 +56,7 @@ npm.cmd run dev
 
 ## ランキングの仕様
 
-- ランキングの「新版」「旧版」で、それぞれの上位記録と自分の順位を確認できます。ローカルのベストもバージョン別です。
+- ランキングの「ノーマル」「スーパードパガキ」で、それぞれの上位記録と自分の順位を確認できます。自己ベストもモード別です。
 
 - 表示名は1〜16文字です。ログインは不要です。クライアントがランダムな端末トークンを生成し、ブラウザーのローカルストレージに保存します。名前が同じ別端末は別プレーヤーです。
 - サーバー側は1プレーヤーにつき最高距離を整数メートルで1件保存します。短い記録で再登録しても自己ベストを維持し、新しく指定した表示名を適用します。
@@ -71,15 +71,16 @@ npm.cmd run dev
 | --- | --- |
 | `index.html`、`src/main.tsx` | ページの入口、React の起動、ローカル配信フォントと共通 CSS の読み込み |
 | `src/App.tsx` | ランキングと遊び方の表示、滑走単位のセッション、結果の登録 |
-| `src/game/edition.ts` | ゲームとランキングで使う新旧バージョンの名前 |
+| `src/game/edition.ts` | ゲームとランキングで使うモードの名前 |
 | `src/components/Game/StartOverlay.tsx` | コースに重ねるタップ開始画面、自己ベスト、効果音切り替え |
 | `src/components/Ranking/Ranking.tsx` | スコア一覧、同順位の表示、自分の順位、取得失敗時の再読み込み |
 | `src/components/Dialogs/Dialogs.tsx` | 遊び方、結果と再挑戦、ランキング登録と結果共有 |
 | `src/components/Game/GameScreen.tsx` | ゲームのフレーム更新、HUD、一時停止、終了判定の通知 |
+| `src/components/Game/ModePicker.tsx`、`mode-picker.css` | 滑走前にモードを選ぶ画面とモード別の自己ベスト表示 |
 | `src/components/Game/SteeringSurface.tsx` | 指を置いた位置に現れるスティック、ポインターキャプチャ、キーボード入力 |
 | `src/components/Game/useGameSound.ts`、`game.css` | Web Audio の効果音とプレイ画面のレイアウト |
-| `src/game/course.ts` | コース中心線、シード付き障害物配置、各列の通過可能なレーンの確保 |
-| `src/game/features.ts` | 加速アイテムとジャンプ台の寸法、効果時間、滑空の高度と速度 |
+| `src/game/course.ts` | コース中心線、地上と空中の障害物配置、通過可能なレーンの確保 |
+| `src/game/features.ts` | 加速アイテムとジャンプ台の寸法、滑空の高度と速度、鳩の位置 |
 | `src/game/joystick.ts` | ドラッグ入力の正規化と、横ターン時の意図しないブレーキの抑制 |
 | `src/game/reach.ts` | 両手の届く位置、腕を伸ばす長さ、手と選手の接触判定 |
 | `src/game/simulation.ts` | 60Hz 固定ステップの滑走、減速、追手の出現・追跡・転倒・衝突、距離計測 |
@@ -91,7 +92,7 @@ npm.cmd run dev
 | `src/scene/environment/instances.ts` | 樹木・柵・追手など繰り返す物体のインスタンス描画 |
 | `src/scene/models/geometry.ts`、`skier.ts`、`courseObjects.ts` | 共通の形状部品、選手、岩・木・山・コース設備の3Dモデルを生成 |
 | `src/scene/models/courseFeatures.ts` | 加速アイテムとジャンプ台の3Dモデルを生成 |
-| `src/scene/models/protectionBarrier.ts` | 無敵中にスキーヤーを包むバリアを描画 |
+| `src/scene/models/pigeon.ts` | 鳩の胴体と左右の翼の3Dモデルを生成 |
 | `src/services/profile.ts` | ローカル統計、表示名、サウンド設定の保存と読み込み |
 | `src/services/leaderboard.ts` | 匿名トークンの生成・保持、API 呼び出し、タイムアウト、応答の型確認 |
 | `src/styles/base.css`、`ranking.css` | 配色、共通のダイアログとボタン、ランキングのレイアウト |
@@ -125,7 +126,7 @@ GitHub の `zuiken-code/SkiGame` を Cloudflare Worker `skigame` に接続しま
 
 ### 1. 本番 D1 の準備
 
-`wrangler.jsonc` の `DB` は旧版用の `ski-game` です。これまでの本番記録はこのデータベースに残ります。新版の本番記録は `DB_NEW` の `ski-game-new` に保存します。初回と、新しい SQL マイグレーションを含む更新の公開前に、リポジトリのルートで以下を実行します。
+`wrangler.jsonc` の `DB` はノーマル用の `ski-game` です。スーパードパガキの本番記録は `DB_NEW` の `ski-game-new` に保存します。初回と、新しい SQL マイグレーションを含む更新の公開前に、リポジトリのルートで以下を実行します。
 
 ```powershell
 npm.cmd ci
@@ -155,7 +156,7 @@ Cloudflare ダッシュボードの **Workers & Pages → skigame → Settings �
 
 本番へ反映する前に、作業ブランチを push して `main` 向けのプルリクエストを作ります。Workers Builds の **Enable Preview Builds** を有効にし、**Preview command** に `npx wrangler preview` を使うと、ブランチへの push でプレビューが更新されます。[Workers Builds のプレビュー設定](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
 
-プレビューのランキングは `wrangler.jsonc` の `previews.d1_databases` にある `ski-game-preview`（新版）と `ski-game-preview-classic`（旧版）に保存します。未適用の SQL がある場合は、プレビュー用 D1 にも適用してからテストします。手元からプレビューだけを再公開するときは、作業ブランチで `npm.cmd run build` の後に `npx.cmd wrangler preview` を実行します。[Worker Previews の設定](https://developers.cloudflare.com/workers/previews/configuration/)
+プレビューのランキングは `wrangler.jsonc` の `previews.d1_databases` にある `ski-game-preview`（スーパードパガキ）と `ski-game-preview-classic`（ノーマル）に保存します。未適用の SQL がある場合は、プレビュー用 D1 にも適用してからテストします。手元からプレビューだけを再公開するときは、作業ブランチで `npm.cmd run build` の後に `npx.cmd wrangler preview` を実行します。[Worker Previews の設定](https://developers.cloudflare.com/workers/previews/configuration/)
 
 ### 4. 更新を本番へ公開する
 
